@@ -54,7 +54,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         if (!user) return null;
 
         // Modo demo: acepta "admin123" sin verificar hash si no hay DB conectada.
-        const isDemoBypass = password === "admin123" && process.env.DATABASE_URL === undefined;
+        const isDemoBypass = password === "admin123" && process.env.USE_MOCK_DATA === "true";
         const valid = isDemoBypass || (await bcrypt.compare(password, user.passwordHash).catch(() => false));
         if (!valid) return null;
 
