@@ -1,0 +1,337 @@
+// ============================================================================
+// Marketing Intelligence Dashboard — Prisma Schema
+// Base de datos: PostgreSQL (Supabase)
+// Principio: histórico inmutable. Nunca se sobrescriben métricas, se agregan
+// nuevos snapshots (grain temporal) para poder reconstruir evolución diaria.
+// ============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Auth
+// ---------------------------------------------------------------------------
+
+enum Role {
+  ADMIN
+  GUEST
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String
+  email         String    @unique
+  passwordHash  String
+  role          Role      @default(GUEST)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  reports       Report[]
+}
+
+// ---------------------------------------------------------------------------
+// Marcas / Credenciales Meta
+// ---------------------------------------------------------------------------
+
+enum BrandSlug {
+  informes_comerciales
+  inversiones_cinco
+  segal_deudores
+}
+
+model Brand {
+  id                  String       @id @default(cuid())
+  slug                BrandSlug    @unique
+  name                String
+  logoUrl             String?
+  themeColor          String?      // hex, usado en charts comparativos
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+
+  // Credenciales (encriptadas a nivel de aplicación antes de persistir)
+  metaCredential      MetaCredential?
+
+  campaigns           Campaign[]
+  posts               Post[]
+  metricSnapshots     MetricSnapshot[]
+  alerts              Alert[]
+  aiInsights          AiInsight[]
+}
+
+model MetaCredential {
+  id                  String   @id @default(cuid())
+  brandId             String   @unique
+  brand               Brand    @relation(fields: [brandId], references: [id], onDelete: Cascade)
+
+  accessTokenEnc      String   // Meta Access Token (encriptado, AES-256-GCM)
+  adAccountId         String   // act_XXXXXXXXXX
+  facebookPageId       String?
+  instagramBusinessId String?
+
+  tokenExpiresAt      DateTime?
+  lastSyncedAt        DateTime?
+  syncStatus          String?   // idle | syncing | error
+  syncError           String?
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model AppSettings {
+  id                  String   @id @default(cuid())
+  openaiApiKeyEnc     String?
+  autoSyncEnabled     Boolean  @default(true)
+  autoSyncIntervalHrs Int      @default(6)
+  benchmarkCountry    String   @default("CL")
+  updatedAt           DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Campañas / Ad Sets / Ads (Meta Marketing API)
+// ---------------------------------------------------------------------------
+
+enum CampaignStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+  DELETED
+}
+
+enum CampaignObjective {
+  LEADS
+  TRAFFIC
+  ENGAGEMENT
+  CONVERSIONS
+  AWARENESS
+  APP_PROMOTION
+  SALES
+}
+
+model Campaign {
+  id                String            @id @default(cuid())
+  metaCampaignId    String            @unique
+  brandId           String
+  brand             Brand             @relation(fields: [brandId], references: [id], onDelete: Cascade)
+
+  name              String
+  objective         CampaignObjective
+  status            CampaignStatus
+  dailyBudget       Decimal?          @db.Decimal(14, 2)
+  lifetimeBudget    Decimal?          @db.Decimal(14, 2)
+  startDate         DateTime
+  endDate           DateTime?
+
+  adSets            AdSet[]
+  metricSnapshots   MetricSnapshot[]
+  posts             Post[]
+
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+}
+
+model AdSet {
+  id            String    @id @default(cuid())
+  metaAdSetId   String    @unique
+  campaignId    String
+  campaign      Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  name          String
+  status        CampaignStatus
+  ads           Ad[]
+  createdAt     DateTime  @default(now())
+}
+
+model Ad {
+  id          String   @id @default(cuid())
+  metaAdId    String   @unique
+  adSetId     String
+  adSet       AdSet    @relation(fields: [adSetId], references: [id], onDelete: Cascade)
+  name        String
+  status      CampaignStatus
+  creativeUrl String?
+  createdAt   DateTime @default(now())
+}
+
+// ---------------------------------------------------------------------------
+// Métricas — grain temporal (histórico inmutable, nunca se sobrescribe)
+// ---------------------------------------------------------------------------
+
+enum MetricGrain {
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
+model MetricSnapshot {
+  id                String       @id @default(cuid())
+  brandId           String
+  brand             Brand        @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  campaignId        String?
+  campaign          Campaign?    @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  grain             MetricGrain  @default(DAILY)
+  date              DateTime     // fecha de referencia del snapshot (día/semana/mes)
+
+  spend             Decimal      @db.Decimal(14, 2)
+  reach             Int
+  impressions       Int
+  clicks            Int
+  ctr               Decimal      @db.Decimal(8, 4)
+  cpc               Decimal      @db.Decimal(10, 2)
+  cpm               Decimal      @db.Decimal(10, 2)
+  leads             Int          @default(0)
+  cpl               Decimal?     @db.Decimal(10, 2)
+  conversions       Int          @default(0)
+  conversionRate    Decimal?     @db.Decimal(8, 4)
+  roas              Decimal?     @db.Decimal(8, 2)
+  frequency         Decimal      @db.Decimal(6, 3)
+
+  createdAt         DateTime     @default(now())
+
+  @@unique([brandId, campaignId, grain, date])
+  @@index([brandId, grain, date])
+}
+
+// ---------------------------------------------------------------------------
+// Contenidos (Meta Graph API — Facebook / Instagram)
+// ---------------------------------------------------------------------------
+
+enum SocialNetwork {
+  FACEBOOK
+  INSTAGRAM
+}
+
+enum PostType {
+  REEL
+  CAROUSEL
+  IMAGE
+  STORY
+  VIDEO
+}
+
+enum PostFundingType {
+  ORGANIC
+  PAID
+}
+
+model Post {
+  id              String          @id @default(cuid())
+  metaPostId      String          @unique
+  brandId         String
+  brand           Brand           @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  campaignId      String?
+  campaign        Campaign?       @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  network         SocialNetwork
+  type            PostType
+  fundingType     PostFundingType
+  publishedAt     DateTime
+  mediaUrl        String?
+  thumbnailUrl    String?
+  copy            String?         @db.Text
+  permalink       String?
+
+  reach           Int             @default(0)
+  impressions     Int             @default(0)
+  plays           Int             @default(0)
+  likes           Int             @default(0)
+  comments        Int             @default(0)
+  shares          Int             @default(0)
+  saves           Int             @default(0)
+  engagement      Int             @default(0)
+  clicks          Int             @default(0)
+  ctr             Decimal?        @db.Decimal(8, 4)
+  spend           Decimal?        @db.Decimal(14, 2)
+  leads           Int             @default(0)
+  cpl             Decimal?        @db.Decimal(10, 2)
+
+  performanceScore Int?           // 0-100, calculado
+  aiInsight        AiInsight?
+
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@index([brandId, publishedAt])
+  @@index([performanceScore])
+}
+
+// ---------------------------------------------------------------------------
+// IA — insights por publicación y reportes ejecutivos
+// ---------------------------------------------------------------------------
+
+model AiInsight {
+  id                String   @id @default(cuid())
+  postId            String?  @unique
+  post              Post?    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  brandId           String
+  brand             Brand    @relation(fields: [brandId], references: [id], onDelete: Cascade)
+
+  whyItWorked        String  @db.Text
+  whatToReplicate     String  @db.Text
+  whatToImprove       String  @db.Text
+  similarIdeas        String  @db.Text
+  nextContentIdea     String  @db.Text
+
+  model             String   @default("gpt-4o")
+  createdAt         DateTime @default(now())
+}
+
+enum ReportType {
+  EXECUTIVE_MONTHLY
+  CUSTOM
+}
+
+enum ReportFormat {
+  PDF
+  XLSX
+  CSV
+}
+
+model Report {
+  id          String        @id @default(cuid())
+  createdById String
+  createdBy   User          @relation(fields: [createdById], references: [id])
+  type        ReportType
+  format      ReportFormat
+  periodStart DateTime
+  periodEnd   DateTime
+  fileUrl     String?
+  summary     String?       @db.Text
+  createdAt   DateTime      @default(now())
+}
+
+// ---------------------------------------------------------------------------
+// Alertas
+// ---------------------------------------------------------------------------
+
+enum AlertType {
+  CTR_DROP
+  CPL_INCREASE
+  CAMPAIGN_STOPPED_DELIVERY
+  HIGH_FREQUENCY
+  BUDGET_DEPLETING
+}
+
+enum AlertSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+model Alert {
+  id          String        @id @default(cuid())
+  brandId     String
+  brand       Brand         @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  campaignId  String?
+  type        AlertType
+  severity    AlertSeverity
+  message     String
+  isRead      Boolean       @default(false)
+  createdAt   DateTime      @default(now())
+
+  @@index([brandId, isRead])
+}
