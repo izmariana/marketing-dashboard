@@ -7,6 +7,7 @@ import { KpiCard } from "@/components/dashboard/kpi-card";
 import { EvolutionChart } from "@/components/charts/evolution-chart";
 import { BrandComparisonChart } from "@/components/charts/brand-comparison-chart";
 import { ConversionFunnel } from "@/components/charts/conversion-funnel";
+import { MetricHistoryPanel, type MetricHistoryTarget } from "@/components/dashboard/metric-history-panel";
 import { useDashboardSummary } from "@/hooks/use-dashboard-summary";
 import { formatCurrencyCLP, formatNumber, formatPercent, formatCompact, cn } from "@/lib/utils";
 import type { MetricPoint } from "@/types/domain";
@@ -36,7 +37,12 @@ export default function DashboardPage() {
   const [days, setDays] = useState(30);
   const [evolutionMetric, setEvolutionMetric] = useState<keyof MetricPoint>("spend");
   const [compareMetric, setCompareMetric] = useState<keyof MetricPoint>("spend");
+  const [historyTarget, setHistoryTarget] = useState<MetricHistoryTarget | null>(null);
   const { data, isLoading, error } = useDashboardSummary(days);
+
+  function openHistory(metric: string, label: string, formatter: (v: number) => string) {
+    setHistoryTarget({ source: "meta", metric, brand: "all", label, formatter });
+  }
 
   const totals = useMemo(() => {
     if (!data) return null;
@@ -150,18 +156,18 @@ export default function DashboardPage() {
           </div>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <KpiCard label="Inversión" value={formatCurrencyCLP(totals.spend.current)} changePercent={pctChange(totals.spend.current, totals.spend.previous)} direction="up-is-good" delay={0} />
-            <KpiCard label="Alcance" value={formatCompact(totals.reach.current)} changePercent={pctChange(totals.reach.current, totals.reach.previous)} direction="up-is-good" delay={0.02} />
-            <KpiCard label="Impresiones" value={formatCompact(totals.impressions.current)} changePercent={pctChange(totals.impressions.current, totals.impressions.previous)} direction="up-is-good" delay={0.04} />
-            <KpiCard label="Clicks" value={formatCompact(totals.clicks.current)} changePercent={pctChange(totals.clicks.current, totals.clicks.previous)} direction="up-is-good" delay={0.06} />
-            <KpiCard label="CTR" value={formatPercent(totals.ctr.current)} changePercent={pctChange(totals.ctr.current, totals.ctr.previous)} direction="up-is-good" delay={0.08} />
-            <KpiCard label="CPC" value={formatCurrencyCLP(totals.cpc.current)} changePercent={pctChange(totals.cpc.current, totals.cpc.previous)} direction="down-is-good" delay={0.1} />
-            <KpiCard label="CPM" value={formatCurrencyCLP(totals.cpm.current)} changePercent={pctChange(totals.cpm.current, totals.cpm.previous)} direction="down-is-good" delay={0.12} />
-            <KpiCard label="Leads" value={formatNumber(totals.leads.current)} changePercent={pctChange(totals.leads.current, totals.leads.previous)} direction="up-is-good" delay={0.14} />
-            <KpiCard label="CPL" value={formatCurrencyCLP(totals.cpl.current)} changePercent={pctChange(totals.cpl.current, totals.cpl.previous)} direction="down-is-good" delay={0.16} />
-            <KpiCard label="Conversiones" value={formatNumber(totals.conversions.current)} changePercent={pctChange(totals.conversions.current, totals.conversions.previous)} direction="up-is-good" delay={0.18} />
-            <KpiCard label="Tasa de conversión" value={formatPercent(totals.conversionRate.current)} changePercent={pctChange(totals.conversionRate.current, totals.conversionRate.previous)} direction="up-is-good" delay={0.2} />
-            <KpiCard label="Frecuencia" value={totals.frequency.current.toFixed(2)} changePercent={pctChange(totals.frequency.current, totals.frequency.previous)} direction="down-is-good" delay={0.22} />
+            <KpiCard label="Inversión" value={formatCurrencyCLP(totals.spend.current)} changePercent={pctChange(totals.spend.current, totals.spend.previous)} direction="up-is-good" delay={0} onClick={() => openHistory("spend", "Inversión", formatCurrencyCLP)} />
+            <KpiCard label="Alcance" value={formatCompact(totals.reach.current)} changePercent={pctChange(totals.reach.current, totals.reach.previous)} direction="up-is-good" delay={0.02} onClick={() => openHistory("reach", "Alcance", formatCompact)} />
+            <KpiCard label="Impresiones" value={formatCompact(totals.impressions.current)} changePercent={pctChange(totals.impressions.current, totals.impressions.previous)} direction="up-is-good" delay={0.04} onClick={() => openHistory("impressions", "Impresiones", formatCompact)} />
+            <KpiCard label="Clicks" value={formatCompact(totals.clicks.current)} changePercent={pctChange(totals.clicks.current, totals.clicks.previous)} direction="up-is-good" delay={0.06} onClick={() => openHistory("clicks", "Clicks", formatCompact)} />
+            <KpiCard label="CTR" value={formatPercent(totals.ctr.current)} changePercent={pctChange(totals.ctr.current, totals.ctr.previous)} direction="up-is-good" delay={0.08} onClick={() => openHistory("ctr", "CTR", formatPercent)} />
+            <KpiCard label="CPC" value={formatCurrencyCLP(totals.cpc.current)} changePercent={pctChange(totals.cpc.current, totals.cpc.previous)} direction="down-is-good" delay={0.1} onClick={() => openHistory("cpc", "CPC", formatCurrencyCLP)} />
+            <KpiCard label="CPM" value={formatCurrencyCLP(totals.cpm.current)} changePercent={pctChange(totals.cpm.current, totals.cpm.previous)} direction="down-is-good" delay={0.12} onClick={() => openHistory("cpm", "CPM", formatCurrencyCLP)} />
+            <KpiCard label="Leads" value={formatNumber(totals.leads.current)} changePercent={pctChange(totals.leads.current, totals.leads.previous)} direction="up-is-good" delay={0.14} onClick={() => openHistory("leads", "Leads", formatNumber)} />
+            <KpiCard label="CPL" value={formatCurrencyCLP(totals.cpl.current)} changePercent={pctChange(totals.cpl.current, totals.cpl.previous)} direction="down-is-good" delay={0.16} onClick={() => openHistory("cpl", "CPL", formatCurrencyCLP)} />
+            <KpiCard label="Conversiones" value={formatNumber(totals.conversions.current)} changePercent={pctChange(totals.conversions.current, totals.conversions.previous)} direction="up-is-good" delay={0.18} onClick={() => openHistory("conversions", "Conversiones", formatNumber)} />
+            <KpiCard label="Tasa de conversión" value={formatPercent(totals.conversionRate.current)} changePercent={pctChange(totals.conversionRate.current, totals.conversionRate.previous)} direction="up-is-good" delay={0.2} onClick={() => openHistory("conversionRate", "Tasa de conversión", formatPercent)} />
+            <KpiCard label="Frecuencia" value={totals.frequency.current.toFixed(2)} changePercent={pctChange(totals.frequency.current, totals.frequency.previous)} direction="down-is-good" delay={0.22} onClick={() => openHistory("frequency", "Frecuencia", (v) => v.toFixed(2))} />
           </div>
         )}
 
@@ -229,6 +235,8 @@ export default function DashboardPage() {
           )}
         </Panel>
       </div>
+
+      <MetricHistoryPanel target={historyTarget} onClose={() => setHistoryTarget(null)} />
     </div>
   );
 }

@@ -2,14 +2,16 @@
 
 Dashboard de inteligencia de marketing para **Informes Comerciales**, **Inversiones Cinco** y **Segal Deudores**. Centraliza Meta Ads (Marketing API) y contenidos de Facebook/Instagram (Graph API), con motor de recomendaciones automáticas, benchmarks Chile, Performance Score y capa de IA (OpenAI) para insights y reportes ejecutivos.
 
-> **Estado del proyecto:** Las 5 fases están completas.
-> - Fase 1: Arquitectura, base de datos, autenticación, layout y Dashboard Principal.
-> - Fase 2: Campañas conectadas a Meta Marketing API (sincronización real), calendario de campañas y sistema de alertas automático.
-> - Fase 3: Módulo de Contenidos — grid de publicaciones, Performance Score, filtros y ordenamiento, comparador, ranking mensual y análisis con IA por publicación.
-> - Fase 4: Marketing Advisor IA — resumen ejecutivo, recomendaciones automáticas y Benchmark Chile.
-> - Fase 5: Reportes — exportación a PDF, Excel y CSV, con historial.
+> **Estado del proyecto:** Las 5 fases originales están completas, más 7 ampliaciones:
+> - Guardado real de credenciales (Meta y OpenAI ya se guardan encriptadas en la base de datos desde Configuración).
+> - **Google Analytics 4** completo: KPIs, adquisición de tráfico, landing pages, eventos/conversiones y embudo de conversión.
+> - **Meta reestructurado** (Instagram / Facebook / Ambas) con seguimiento de seguidores, y **TikTok** construido completo con el mismo patrón. **LinkedIn** dejado como "Próximamente".
+> - **Métricas clickeables**: toda tarjeta de KPI se puede abrir para ver su histórico completo, con rango libre y vista diaria/semanal/mensual/anual.
+> - **Branding configurable**: nombre, logo, favicon y colores editables desde Configuración, sin tocar código.
+> - **Comparación Meta vs Google Analytics** + **Inteligencia de Contenidos**: patrones automáticos (mejor formato, día, hora, temas, CTA) con recomendaciones accionables.
+> - **Alertas ampliadas** (10 tipos, con explicación y recomendación separadas) + **Reportes por período de calendario** (Diario/Semanal/Mensual/Trimestral/Anual).
 >
-> Todo funciona hoy mismo con datos simulados realistas para el mercado chileno. Conecta tus credenciales de Meta y tu OpenAI API Key en Configuración para pasar a datos y análisis reales sin tocar código.
+> Todo funciona hoy mismo con datos simulados realistas. Conecta tus credenciales reales en Configuración para pasar a datos reales sin tocar código.
 
 ---
 
@@ -186,7 +188,94 @@ Ningún componente de UI necesita cambiar: todos consumen los tipos de `src/type
 
 ---
 
-## 10. Despliegue en Vercel
+## 10. Configuración inicial de la base de datos (una sola vez)
+
+Antes de guardar credenciales reales de Meta o Google Analytics, necesitas crear las tablas en tu base de datos y las 3 marcas iniciales. Esto se hace **una sola vez**, desde tu computador:
+
+```bash
+npm install
+npx prisma db push    # crea todas las tablas en tu base de datos de Supabase
+npx prisma db seed    # crea las 3 marcas (Informes Comerciales, Inversiones Cinco, Segal Deudores)
+```
+
+Necesitas un archivo `.env` local (no se sube a GitHub) con al menos `DATABASE_URL` y `DIRECT_URL` apuntando a tu Supabase — ver `.env.example`.
+
+---
+
+## 11. Google Analytics 4
+
+- **Conexión**: se configura por marca en Configuración → pega el Property ID y el JSON completo de una Service Account de Google Cloud con acceso "Viewer" al Property. Al guardar, se prueba la conexión real antes de persistir (si falla, avisa el motivo exacto).
+- **Datos mostrados**: usuarios, sesiones, engagement rate, tiempo promedio, páginas vistas, conversiones — con comparación al período anterior, igual que Meta.
+- **Adquisición de tráfico**: agrupado por canal (Organic Search, Paid Social, Direct, etc.) y fuente.
+- **Landing pages**: ranking por sesiones, con engagement, conversiones y tasa de salida.
+- **Eventos**: todos los eventos de GA4, marcando cuáles están configurados como conversión.
+- **Embudo**: Usuarios → Sesiones → Interacción → Formulario enviado → Lead generado → Conversión.
+- **Histórico**: igual que Meta, cada sincronización guarda un snapshot diario que nunca se sobrescribe (`GaMetricSnapshot`), así el histórico es ilimitado sin depender de los límites de la API de Google.
+- **Sincronización**: se integró al mismo botón "Actualizar ahora" y al mismo cron de 6 horas que ya sincroniza Meta (`sync-service.ts` + `ga-sync-service.ts` corren juntos desde `/api/sync`).
+
+---
+
+## 12. Meta, TikTok y LinkedIn — plataformas separadas
+
+- **Meta** (`/meta`): reemplaza a la antigua página "Contenidos". Tiene un selector **Instagram / Facebook / Ambas** que filtra tanto los KPIs de seguidores como el grid de publicaciones. Al elegir "Ambas" se muestran los seguidores de ambas redes lado a lado.
+- **TikTok** (`/tiktok`): página independiente con el mismo patrón (seguidores, videos, Performance Score, comparador, ranking mensual, análisis con IA). Solo contenido orgánico por ahora — no incluye TikTok Ads.
+- **LinkedIn** (`/linkedin`): aparece en el menú como "Próximamente" (bloqueado, no clickeable). El modelo de datos (`Post`, `MetricSnapshot`, `FollowerSnapshot`) ya soporta la red `LINKEDIN`, así que activarlo en el futuro es agregar la integración con su API, sin reestructurar nada.
+- **Seguidores** (`FollowerSnapshot`): nuevo histórico por red social y marca, con la misma filosofía que el resto — snapshots diarios que nunca se sobrescriben, así el crecimiento se puede consultar sin límite de tiempo.
+- El detalle, análisis con IA y comparador de publicaciones funcionan igual para contenido de Meta y de TikTok (una sola publicación de cada red se puede comparar entre sí, por ejemplo un Reel de Instagram contra un video de TikTok).
+
+---
+
+## 13. Métricas clickeables e histórico ilimitado
+
+- Cualquier tarjeta de KPI con un ícono de gráfico al pasar el mouse es clickeable — abre un panel lateral con el histórico completo de esa métrica.
+- **Rangos disponibles**: Hoy, 7 días, 30 días, 90 días, 12 meses, Desde el inicio, o un rango de fechas personalizado.
+- **Vistas disponibles**: Diaria, Semanal, Mensual, Anual — el agrupamiento se hace en el navegador a partir de los datos diarios (`bucketSeries()` en `metric-aggregation.ts`), sumando o promediando según corresponda a cada métrica.
+- **Una sola ruta central** (`/api/metrics/history`) sirve el histórico de Meta, Google Analytics y Seguidores, tanto en modo simulado como con datos reales — no depende de los límites de 90 días de la API de Meta, porque siempre lee del histórico propio guardado en `MetricSnapshot`, `GaMetricSnapshot` o `FollowerSnapshot`.
+- Con datos simulados, "Desde el inicio" muestra un rango de ejemplo (~400 días). Con datos reales, mostrará desde tu primer día de sincronización, sin ningún límite.
+
+---
+
+## 14. Branding configurable
+
+- Ve a **Configuración → Branding**: puedes cambiar el nombre de la plataforma, nombre de la empresa, logo, favicon, color principal y color secundario.
+- Los cambios se aplican **de inmediato**, sin redesplegar: el nombre y logo se actualizan en el menú lateral y el login, y el color principal se aplica a botones, pestañas activas y acentos en toda la app.
+- El logo y favicon se guardan como imagen embebida (base64) directo en la base de datos — no necesitas ningún servicio externo de almacenamiento de archivos. Límite recomendado: menos de 650KB por imagen.
+- Por defecto, la plataforma se llama **"Marketing Segal"**.
+- Técnicamente: `AppSettings` en Prisma guarda estos campos; `/api/settings/branding` los expone públicamente (sin sesión, porque el login también los necesita) y los guarda solo si el usuario es Admin; `BrandingProvider` los aplica en el navegador vía `document.title`, el favicon y la variable CSS `--accent`.
+
+---
+
+## 15. Comparación de Plataformas + Inteligencia de Contenidos
+
+### Comparación Meta vs Google Analytics (`/comparacion`)
+- Compara tráfico (clics vs sesiones), conversiones, leads, CTR/Engagement Rate y CPC entre ambas fuentes.
+- Genera automáticamente explicaciones de por qué los números pueden diferir (ventanas de atribución, bloqueadores de anuncios, restricciones de tracking en iOS/Safari), disparadas cuando la diferencia porcentual supera un umbral razonable.
+- No depende de OpenAI — es 100% basada en reglas, así que funciona siempre, sin costo.
+
+### Inteligencia de Contenidos (dentro de Recomendaciones IA)
+- Analiza todas las publicaciones de Meta del período y detecta: mejor formato, mejor día de la semana, mejor franja horaria, temas frecuentes en el copy de las publicaciones top, y el llamado a la acción con mejor rendimiento.
+- Genera recomendaciones accionables ("prioriza X formato", "publica los días Y", "evita seguir usando Z").
+- **Limitación documentada honestamente**: no analiza duración de video, porque Meta Graph API no garantiza ese dato para todo el contenido orgánico — se prefirió omitirlo antes que mostrar una cifra poco confiable. La detección de temas/CTA es una aproximación por palabras clave, no una clasificación semántica real.
+
+---
+
+## 16. Alertas ampliadas + Reportes por período
+
+### Centro de Alertas (`/alertas`)
+- 10 tipos de alerta: CTR bajo (con detección de tendencia real período sobre período, no solo umbral fijo), CPL alto, campaña sin entrega, frecuencia alta, presupuesto por agotarse, **engagement en baja, caída de seguidores, publicación bajo rendimiento, abandono en landing page, campaña sin resultados**.
+- Cada alerta trae `message` (explicación) y `recommendation` (acción concreta) por separado.
+- Filtros por marca y severidad, botón para marcar como leída, y se evita duplicar la misma alerta dentro de 24 horas.
+
+### Reportes por período (`/reportes`)
+- 5 períodos alineados a calendario (no solo "últimos N días"): **Diario** (ayer), **Semanal** (últimos 7 días), **Mensual** (mes calendario actual), **Trimestral** (trimestre calendario actual), **Anual** (año calendario actual).
+- `getPeriodRange()` en `report-periods.ts` calcula el rango exacto; `getBrandReportData()` ahora acepta tanto un número de días (retrocompatible) como un rango `{ since, until }` explícito.
+
+### Un bug real que se encontró y corrigió en este tramo
+Al probar los reportes semanales, el período actual y el anterior mostraban números idénticos — la causa era que los datos de ejemplo generaban su "ruido aleatorio" en una secuencia que se repetía cada vez que dos ventanas de tiempo caían en los mismos días de la semana (siempre el caso en comparaciones semanales). Se corrigió ligando la semilla aleatoria a la fecha calendario real de cada día en `generateDailyMetrics()`, `generateGaDailyMetrics()` y `generateFollowerSnapshots()` — confirmado con pruebas en vivo que ahora las comparaciones muestran variación realista.
+
+---
+
+## 17. Despliegue en Vercel
 
 ```bash
 npm install -g vercel
@@ -219,7 +308,7 @@ docker run -p 3000:3000 --env-file .env marketing-dashboard
 
 ---
 
-## 11. Proyecto completo
+## 18. Proyecto completo
 
 Las 5 fases están implementadas y probadas de punta a punta (build de producción limpio, endpoints verificados con datos simulados realistas). Los siguientes pasos quedan en tus manos:
 

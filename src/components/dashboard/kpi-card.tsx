@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { ArrowUpRight, ArrowDownRight, Minus } from "lucide-react";
+import { ArrowUpRight, ArrowDownRight, Minus, LineChart } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type KpiDirection = "up-is-good" | "down-is-good";
@@ -13,9 +13,10 @@ interface KpiCardProps {
   changePercent?: number; // positivo o negativo
   direction?: KpiDirection; // determina si el cambio es bueno o malo
   delay?: number;
+  onClick?: () => void;
 }
 
-export function KpiCard({ label, value, previousValue, changePercent, direction = "up-is-good", delay = 0 }: KpiCardProps) {
+export function KpiCard({ label, value, previousValue, changePercent, direction = "up-is-good", delay = 0, onClick }: KpiCardProps) {
   const isPositiveChange = (changePercent ?? 0) > 0;
   const isGood =
     changePercent === undefined
@@ -29,8 +30,18 @@ export function KpiCard({ label, value, previousValue, changePercent, direction 
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35, delay }}
-      className="rounded-xl border border-border bg-surface p-4 hover:border-accent/40 transition-colors"
+      onClick={onClick}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={onClick ? (e) => (e.key === "Enter" || e.key === " ") && onClick() : undefined}
+      className={cn(
+        "group relative rounded-xl border border-border bg-surface p-4 hover:border-accent/40 transition-colors",
+        onClick && "cursor-pointer"
+      )}
     >
+      {onClick && (
+        <LineChart className="absolute top-3.5 right-3.5 h-3.5 w-3.5 text-muted opacity-0 group-hover:opacity-100 transition-opacity" />
+      )}
       <p className="text-xs font-medium text-muted mb-2">{label}</p>
       <p className="text-2xl font-semibold tracking-tight tabular-nums">{value}</p>
 

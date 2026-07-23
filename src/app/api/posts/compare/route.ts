@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAllMockPosts } from "@/lib/mock/generator";
+import { findMockPostById } from "@/lib/mock/generator";
 import { getPrisma, isDatabaseConfigured } from "@/lib/db/prisma";
 import { comparePosts } from "@/lib/services/recommendation-engine";
 import type { Post } from "@/types/domain";
@@ -14,9 +14,8 @@ export async function POST(req: NextRequest) {
   let b: Post | undefined;
 
   if (!isDatabaseConfigured) {
-    const all = getAllMockPosts();
-    a = all.find((p) => p.id === postIdA);
-    b = all.find((p) => p.id === postIdB);
+    a = findMockPostById(postIdA);
+    b = findMockPostById(postIdB);
   } else {
     const prisma = await getPrisma();
     const [dbA, dbB] = await Promise.all([

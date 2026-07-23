@@ -1,12 +1,15 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { BarChart3 } from "lucide-react";
+import { useBranding } from "@/hooks/use-branding";
 
 export default function LoginPage() {
   const router = useRouter();
+  const { data: branding } = useBranding();
   const [email, setEmail] = useState("admin@dashboard.cl");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -32,10 +35,16 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-background px-4">
       <div className="w-full max-w-sm">
         <div className="flex items-center gap-2 mb-8 justify-center">
-          <div className="h-9 w-9 rounded-lg bg-accent flex items-center justify-center">
-            <BarChart3 className="h-5 w-5 text-accent-foreground" />
-          </div>
-          <span className="font-semibold text-lg tracking-tight">Marketing Intelligence</span>
+          {branding?.logoDataUrl ? (
+            <div className="h-9 w-9 rounded-lg overflow-hidden relative bg-accent">
+              <Image src={branding.logoDataUrl} alt="" fill unoptimized className="object-cover" />
+            </div>
+          ) : (
+            <div className="h-9 w-9 rounded-lg bg-accent flex items-center justify-center">
+              <BarChart3 className="h-5 w-5 text-accent-foreground" />
+            </div>
+          )}
+          <span className="font-semibold text-lg tracking-tight">{branding?.platformName ?? "Marketing Segal"}</span>
         </div>
 
         <div className="rounded-xl border border-border bg-surface p-6">

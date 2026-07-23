@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPrisma, isDatabaseConfigured } from "@/lib/db/prisma";
-import { getAllMockPosts } from "@/lib/mock/generator";
+import { findMockPostById } from "@/lib/mock/generator";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
   if (!isDatabaseConfigured) {
-    const post = getAllMockPosts().find((p) => p.id === id);
+    const post = findMockPostById(id);
     if (!post) return NextResponse.json({ error: "Publicación no encontrada" }, { status: 404 });
     return NextResponse.json({ post, source: "mock" });
   }

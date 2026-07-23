@@ -58,7 +58,7 @@ export interface Campaign {
   metrics: MetricPoint; // acumulado del período seleccionado
 }
 
-export type SocialNetwork = "FACEBOOK" | "INSTAGRAM";
+export type SocialNetwork = "FACEBOOK" | "INSTAGRAM" | "TIKTOK" | "LINKEDIN";
 export type PostType = "REEL" | "CAROUSEL" | "IMAGE" | "STORY" | "VIDEO";
 export type PostFundingType = "ORGANIC" | "PAID";
 
@@ -101,7 +101,12 @@ export type AlertType =
   | "CPL_INCREASE"
   | "CAMPAIGN_STOPPED_DELIVERY"
   | "HIGH_FREQUENCY"
-  | "BUDGET_DEPLETING";
+  | "BUDGET_DEPLETING"
+  | "ENGAGEMENT_DROP"
+  | "FOLLOWER_DROP"
+  | "POST_UNDERPERFORMING"
+  | "LANDING_PAGE_ABANDONMENT"
+  | "CAMPAIGN_NO_RESULTS";
 
 export type AlertSeverity = "INFO" | "WARNING" | "CRITICAL";
 
@@ -111,6 +116,7 @@ export interface Alert {
   type: AlertType;
   severity: AlertSeverity;
   message: string;
+  recommendation: string;
   createdAt: string;
   isRead: boolean;
 }

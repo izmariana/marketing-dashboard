@@ -7,7 +7,7 @@ import { ScoreBadge } from "@/components/dashboard/score-badge";
 import { formatCompact, formatDateShort, cn } from "@/lib/utils";
 import type { Post } from "@/types/domain";
 
-const NETWORK_LABEL: Record<string, string> = { FACEBOOK: "Facebook", INSTAGRAM: "Instagram" };
+const NETWORK_LABEL: Record<string, string> = { FACEBOOK: "Facebook", INSTAGRAM: "Instagram", TIKTOK: "TikTok", LINKEDIN: "LinkedIn" };
 const TYPE_LABEL: Record<string, string> = { REEL: "Reel", CAROUSEL: "Carrusel", IMAGE: "Imagen", STORY: "Historia", VIDEO: "Video" };
 
 export function PostCard({

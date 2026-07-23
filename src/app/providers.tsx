@@ -3,6 +3,7 @@
 import { useState, createContext, useContext, useEffect } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { SessionProvider } from "next-auth/react";
+import { BrandingProvider } from "@/components/branding-provider";
 
 type Theme = "dark" | "light";
 interface ThemeCtx {
@@ -38,7 +39,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <SessionProvider>
       <QueryClientProvider client={client}>
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          <BrandingProvider>{children}</BrandingProvider>
+        </ThemeProvider>
       </QueryClientProvider>
     </SessionProvider>
   );

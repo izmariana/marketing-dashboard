@@ -14,16 +14,24 @@ const FORMATS = [
   { value: "csv", label: "CSV", description: "Datos crudos para análisis en otras herramientas", icon: FileDown },
 ];
 
+const PERIODS = [
+  { value: "daily", label: "Diario", description: "El día de ayer" },
+  { value: "weekly", label: "Semanal", description: "Últimos 7 días" },
+  { value: "monthly", label: "Mensual", description: "Mes calendario actual" },
+  { value: "quarterly", label: "Trimestral", description: "Trimestre calendario actual" },
+  { value: "yearly", label: "Anual", description: "Año calendario actual" },
+];
+
 export default function ReportesPage() {
   const [brand, setBrand] = useState<string>(BRANDS[0].slug);
-  const [days, setDays] = useState(30);
+  const [period, setPeriod] = useState("monthly");
   const [downloading, setDownloading] = useState<string | null>(null);
   const { data: history, isLoading: historyLoading, refetch } = useReportHistory();
 
   async function handleExport(format: string) {
     setDownloading(format);
     try {
-      const res = await fetch(`/api/reports/export?brand=${brand}&format=${format}&days=${days}`);
+      const res = await fetch(`/api/reports/export?brand=${brand}&format=${format}&period=${period}`);
       if (!res.ok) throw new Error("No se pudo generar el reporte");
 
       const blob = await res.blob();
@@ -44,6 +52,7 @@ export default function ReportesPage() {
   }
 
   const brandName = BRANDS.find((b) => b.slug === brand)?.name;
+  const periodMeta = PERIODS.find((p) => p.value === period);
 
   return (
     <div>
@@ -52,26 +61,35 @@ export default function ReportesPage() {
       <div className="p-6 space-y-5 max-w-[1000px]">
         <div>
           <h2 className="text-lg font-semibold tracking-tight">Reportes</h2>
-          <p className="text-sm text-muted">Exporta el Reporte Ejecutivo IA en el formato que necesites</p>
+          <p className="text-sm text-muted">Exporta el Reporte Ejecutivo IA en el formato y período que necesites</p>
         </div>
 
         <Panel title="Generar reporte">
           <div className="space-y-4">
-            <div className="flex items-center gap-3 flex-wrap">
-              <div>
-                <label className="block text-xs font-medium text-muted mb-1.5">Marca</label>
-                <select value={brand} onChange={(e) => setBrand(e.target.value)} className="text-sm rounded-md border border-border bg-surface-2 px-3 py-2 outline-none focus:border-accent">
-                  {BRANDS.map((b) => <option key={b.slug} value={b.slug}>{b.name}</option>)}
-                </select>
+            <div>
+              <label className="block text-xs font-medium text-muted mb-1.5">Marca</label>
+              <select value={brand} onChange={(e) => setBrand(e.target.value)} className="text-sm rounded-md border border-border bg-surface-2 px-3 py-2 outline-none focus:border-accent">
+                {BRANDS.map((b) => <option key={b.slug} value={b.slug}>{b.name}</option>)}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-muted mb-1.5">Período</label>
+              <div className="flex items-center rounded-md border border-border p-0.5 bg-surface w-fit flex-wrap">
+                {PERIODS.map((p) => (
+                  <button
+                    key={p.value}
+                    onClick={() => setPeriod(p.value)}
+                    className={cn(
+                      "px-3 py-1.5 text-xs font-medium rounded-[6px] transition-colors",
+                      period === p.value ? "bg-accent text-accent-foreground" : "text-muted hover:text-foreground"
+                    )}
+                  >
+                    {p.label}
+                  </button>
+                ))}
               </div>
-              <div>
-                <label className="block text-xs font-medium text-muted mb-1.5">Período</label>
-                <select value={days} onChange={(e) => setDays(Number(e.target.value))} className="text-sm rounded-md border border-border bg-surface-2 px-3 py-2 outline-none focus:border-accent">
-                  <option value={7}>Últimos 7 días</option>
-                  <option value={30}>Últimos 30 días</option>
-                  <option value={90}>Últimos 90 días</option>
-                </select>
-              </div>
+              {periodMeta && <p className="text-[11px] text-muted mt-1.5">{periodMeta.description}</p>}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -99,7 +117,7 @@ export default function ReportesPage() {
             </div>
 
             <p className="text-xs text-muted">
-              Se exportará el reporte de <span className="font-medium text-foreground">{brandName}</span> con datos de los últimos {days} días.
+              Se exportará el {periodMeta?.label.toLowerCase()} de <span className="font-medium text-foreground">{brandName}</span> ({periodMeta?.description.toLowerCase()}).
             </p>
           </div>
         </Panel>

@@ -1,23 +1,31 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   Building2,
   Megaphone,
-  Image as ImageIcon,
   Sparkles,
   FileBarChart,
   Settings,
   BarChart3,
+  LineChart,
+  Layers,
+  Music2,
+  Briefcase,
+  GitCompareArrows,
+  Bell,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useBranding } from "@/hooks/use-branding";
 
 interface NavLeaf {
   href: string;
   label: string;
   icon: typeof LayoutDashboard;
+  disabled?: boolean;
 }
 interface NavGroup {
   label: string;
@@ -38,7 +46,12 @@ const NAV: NavItem[] = [
     ],
   },
   { href: "/campanas", label: "Campañas", icon: Megaphone },
-  { href: "/contenidos", label: "Contenidos", icon: ImageIcon },
+  { href: "/google-analytics", label: "Google Analytics", icon: LineChart },
+  { href: "/meta", label: "Meta", icon: Layers },
+  { href: "/tiktok", label: "TikTok", icon: Music2 },
+  { href: "/linkedin", label: "LinkedIn", icon: Briefcase, disabled: true },
+  { href: "/comparacion", label: "Comparación", icon: GitCompareArrows },
+  { href: "/alertas", label: "Alertas", icon: Bell },
   { href: "/recomendaciones", label: "Recomendaciones IA", icon: Sparkles },
   { href: "/reportes", label: "Reportes", icon: FileBarChart },
   { href: "/configuracion", label: "Configuración", icon: Settings },
@@ -46,14 +59,21 @@ const NAV: NavItem[] = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { data: branding } = useBranding();
 
   return (
     <aside className="w-60 shrink-0 border-r border-border bg-surface h-screen sticky top-0 flex flex-col">
       <div className="h-14 flex items-center gap-2 px-4 border-b border-border">
-        <div className="h-7 w-7 rounded-md bg-accent flex items-center justify-center shrink-0">
-          <BarChart3 className="h-4 w-4 text-accent-foreground" />
-        </div>
-        <span className="font-semibold text-sm tracking-tight truncate">Marketing Intelligence</span>
+        {branding?.logoDataUrl ? (
+          <div className="h-7 w-7 rounded-md overflow-hidden shrink-0 relative bg-accent">
+            <Image src={branding.logoDataUrl} alt="" fill unoptimized className="object-cover" />
+          </div>
+        ) : (
+          <div className="h-7 w-7 rounded-md bg-accent flex items-center justify-center shrink-0">
+            <BarChart3 className="h-4 w-4 text-accent-foreground" />
+          </div>
+        )}
+        <span className="font-semibold text-sm tracking-tight truncate">{branding?.platformName ?? "Marketing Segal"}</span>
       </div>
 
       <nav className="flex-1 overflow-y-auto scrollbar-thin py-3 px-2 space-y-0.5">
@@ -85,6 +105,21 @@ export function Sidebar() {
 
           const Icon = item.icon;
           const active = pathname === item.href;
+
+          if (item.disabled) {
+            return (
+              <div
+                key={item.href}
+                className="flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm text-muted/60 cursor-not-allowed"
+                title="Próximamente"
+              >
+                <Icon className="h-4 w-4" />
+                {item.label}
+                <span className="ml-auto text-[10px] bg-surface-2 border border-border rounded-full px-1.5 py-0.5">Pronto</span>
+              </div>
+            );
+          }
+
           return (
             <Link
               key={item.href}

@@ -7,6 +7,8 @@ import { ExecutiveSummaryPanel } from "@/components/dashboard/executive-summary-
 import { RecommendationsList } from "@/components/dashboard/recommendations-list";
 import { BenchmarkTable } from "@/components/dashboard/benchmark-table";
 import { useRecommendations } from "@/hooks/use-recommendations";
+import { useContentIntelligence } from "@/hooks/use-platform-intelligence";
+import { ContentIntelligencePanel } from "@/components/dashboard/content-intelligence-panel";
 import { BRANDS } from "@/types/domain";
 import { formatCurrencyCLP, formatNumber, formatCompact, cn } from "@/lib/utils";
 import { Sparkles } from "lucide-react";
@@ -14,6 +16,7 @@ import { Sparkles } from "lucide-react";
 export default function RecomendacionesPage() {
   const [brand, setBrand] = useState(BRANDS[0].slug);
   const { data, isLoading } = useRecommendations(brand, 30);
+  const { data: contentIntel } = useContentIntelligence(brand, 30);
 
   return (
     <div>
@@ -93,6 +96,8 @@ export default function RecomendacionesPage() {
                 </div>
               </Panel>
             </div>
+
+            {contentIntel && <ContentIntelligencePanel data={contentIntel} />}
           </>
         )}
       </div>

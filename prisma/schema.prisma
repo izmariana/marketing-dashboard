@@ -61,6 +61,12 @@ model Brand {
   metricSnapshots     MetricSnapshot[]
   alerts              Alert[]
   aiInsights          AiInsight[]
+  gaCredential        GaCredential?
+  gaMetricSnapshots   GaMetricSnapshot[]
+  gaTrafficSources    GaTrafficSource[]
+  gaLandingPages      GaLandingPage[]
+  gaEvents            GaEvent[]
+  followerSnapshots   FollowerSnapshot[]
 }
 
 model MetaCredential {
@@ -88,7 +94,117 @@ model AppSettings {
   autoSyncEnabled     Boolean  @default(true)
   autoSyncIntervalHrs Int      @default(6)
   benchmarkCountry    String   @default("CL")
+
+  // Branding — configurable desde Configuración, sin tocar código
+  platformName        String   @default("Marketing Segal")
+  companyName         String   @default("Segal")
+  logoDataUrl          String?  @db.Text // imagen embebida como data URL (base64)
+  faviconDataUrl       String?  @db.Text
+  primaryColor        String   @default("#6E56CF")
+  secondaryColor      String   @default("#3FBF8F")
+
   updatedAt           DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Google Analytics 4
+// ---------------------------------------------------------------------------
+
+model GaCredential {
+  id                    String   @id @default(cuid())
+  brandId               String   @unique
+  brand                 Brand    @relation(fields: [brandId], references: [id], onDelete: Cascade)
+
+  propertyId            String   // GA4 Property ID, ej: "properties/123456789"
+  serviceAccountJsonEnc  String   // JSON de la Service Account, encriptado (AES-256-GCM)
+
+  lastSyncedAt          DateTime?
+  syncStatus            String?   // idle | syncing | error
+  syncError             String?
+
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
+
+model GaMetricSnapshot {
+  id                String       @id @default(cuid())
+  brandId           String
+  brand             Brand        @relation(fields: [brandId], references: [id], onDelete: Cascade)
+
+  grain             MetricGrain  @default(DAILY)
+  date              DateTime
+
+  users             Int
+  newUsers          Int
+  sessions          Int
+  engagedSessions   Int
+  engagementRate    Decimal      @db.Decimal(8, 4)
+  avgEngagementSec  Decimal      @db.Decimal(10, 2)
+  pageViews         Int
+  eventCount        Int
+  conversions       Int
+  conversionRate    Decimal      @db.Decimal(8, 4)
+
+  createdAt         DateTime     @default(now())
+
+  @@unique([brandId, grain, date])
+  @@index([brandId, grain, date])
+}
+
+model GaTrafficSource {
+  id                String       @id @default(cuid())
+  brandId           String
+  brand             Brand        @relation(fields: [brandId], references: [id], onDelete: Cascade)
+
+  date              DateTime
+  channel           String       // Organic Search, Paid Social, Direct, etc.
+  source             String?      // google, facebook, instagram, (direct)...
+  users             Int
+  sessions          Int
+  engagementRate    Decimal      @db.Decimal(8, 4)
+  conversions       Int
+  avgEngagementSec  Decimal      @db.Decimal(10, 2)
+
+  createdAt         DateTime     @default(now())
+
+  @@index([brandId, date])
+}
+
+model GaLandingPage {
+  id                String       @id @default(cuid())
+  brandId           String
+  brand             Brand        @relation(fields: [brandId], references: [id], onDelete: Cascade)
+
+  date              DateTime
+  path              String
+  title             String?
+  users             Int
+  sessions          Int
+  engagementRate    Decimal      @db.Decimal(8, 4)
+  conversions       Int
+  avgEngagementSec  Decimal      @db.Decimal(10, 2)
+  exitRate          Decimal      @db.Decimal(8, 4)
+
+  createdAt         DateTime     @default(now())
+
+  @@index([brandId, date])
+}
+
+model GaEvent {
+  id                String       @id @default(cuid())
+  brandId           String
+  brand             Brand        @relation(fields: [brandId], references: [id], onDelete: Cascade)
+
+  date              DateTime
+  eventName         String       // page_view, generate_lead, form_submit...
+  eventCount        Int
+  totalUsers        Int
+  isConversion      Boolean      @default(false)
+  conversionValue    Decimal?     @db.Decimal(14, 2)
+
+  createdAt         DateTime     @default(now())
+
+  @@index([brandId, date, eventName])
 }
 
 // ---------------------------------------------------------------------------
@@ -203,6 +319,8 @@ model MetricSnapshot {
 enum SocialNetwork {
   FACEBOOK
   INSTAGRAM
+  TIKTOK
+  LINKEDIN
 }
 
 enum PostType {
@@ -216,6 +334,27 @@ enum PostType {
 enum PostFundingType {
   ORGANIC
   PAID
+}
+
+// ---------------------------------------------------------------------------
+// Seguidores — histórico por red social (nunca se sobrescribe)
+// ---------------------------------------------------------------------------
+
+model FollowerSnapshot {
+  id            String        @id @default(cuid())
+  brandId       String
+  brand         Brand         @relation(fields: [brandId], references: [id], onDelete: Cascade)
+
+  network       SocialNetwork
+  date          DateTime
+
+  followers     Int
+  newFollowers  Int           @default(0)
+
+  createdAt     DateTime      @default(now())
+
+  @@unique([brandId, network, date])
+  @@index([brandId, network, date])
 }
 
 model Post {
@@ -314,6 +453,11 @@ enum AlertType {
   CAMPAIGN_STOPPED_DELIVERY
   HIGH_FREQUENCY
   BUDGET_DEPLETING
+  ENGAGEMENT_DROP
+  FOLLOWER_DROP
+  POST_UNDERPERFORMING
+  LANDING_PAGE_ABANDONMENT
+  CAMPAIGN_NO_RESULTS
 }
 
 enum AlertSeverity {
@@ -323,15 +467,16 @@ enum AlertSeverity {
 }
 
 model Alert {
-  id          String        @id @default(cuid())
-  brandId     String
-  brand       Brand         @relation(fields: [brandId], references: [id], onDelete: Cascade)
-  campaignId  String?
-  type        AlertType
-  severity    AlertSeverity
-  message     String
-  isRead      Boolean       @default(false)
-  createdAt   DateTime      @default(now())
+  id             String        @id @default(cuid())
+  brandId        String
+  brand          Brand         @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  campaignId     String?
+  type           AlertType
+  severity       AlertSeverity
+  message        String
+  recommendation String        @default("")
+  isRead         Boolean       @default(false)
+  createdAt      DateTime      @default(now())
 
   @@index([brandId, isRead])
 }

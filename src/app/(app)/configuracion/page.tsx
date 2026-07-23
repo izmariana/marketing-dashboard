@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Topbar } from "@/components/layout/topbar";
 import { Panel } from "@/components/dashboard/panel";
+import { BrandingCard } from "@/components/dashboard/branding-card";
 import { BRANDS } from "@/types/domain";
 import { CheckCircle2, Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -21,12 +22,19 @@ const settingsSchema = z.object({
   openaiApiKey: z.string().min(20, "La API Key de OpenAI parece inválida"),
 });
 
+const gaCredentialSchema = z.object({
+  propertyId: z.string().min(1, "Ingresa el Property ID de GA4"),
+  serviceAccountJson: z.string().min(50, "Pega el JSON completo de la Service Account"),
+});
+
 type BrandCredentialForm = z.infer<typeof brandCredentialSchema>;
 type SettingsForm = z.infer<typeof settingsSchema>;
+type GaCredentialForm = z.infer<typeof gaCredentialSchema>;
 
-function BrandCredentialCard({ brandName, brandColor }: { brandName: string; brandColor: string }) {
+function BrandCredentialCard({ brandSlug, brandName, brandColor }: { brandSlug: string; brandName: string; brandColor: string }) {
   const [showToken, setShowToken] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [serverError, setServerError] = useState<string | null>(null);
   const {
     register,
     handleSubmit,
@@ -34,12 +42,23 @@ function BrandCredentialCard({ brandName, brandColor }: { brandName: string; bra
   } = useForm<BrandCredentialForm>({ resolver: zodResolver(brandCredentialSchema) });
 
   async function onSubmit(values: BrandCredentialForm) {
-    // Fase 2: POST /api/settings/meta-credentials → encripta (AES-256-GCM) y
-    // guarda en MetaCredential.accessTokenEnc vía Prisma.
-    await new Promise((r) => setTimeout(r, 600));
-    console.log("Guardar credenciales", brandName, values);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
+    setServerError(null);
+    try {
+      const res = await fetch("/api/settings/meta-credentials", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ brandSlug, ...values }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setServerError(data.error ?? "No se pudo guardar. Intenta de nuevo.");
+        return;
+      }
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch {
+      setServerError("No se pudo conectar con el servidor. Intenta de nuevo.");
+    }
   }
 
   return (
@@ -101,6 +120,8 @@ function BrandCredentialCard({ brandName, brandColor }: { brandName: string; bra
           </div>
         </div>
 
+        {serverError && <p className="text-xs text-danger">{serverError}</p>}
+
         <button
           type="submit"
           disabled={isSubmitting}
@@ -124,9 +145,93 @@ function BrandCredentialCard({ brandName, brandColor }: { brandName: string; bra
   );
 }
 
+function GaCredentialCard({ brandSlug, brandName, brandColor }: { brandSlug: string; brandName: string; brandColor: string }) {
+  const [saved, setSaved] = useState(false);
+  const [serverError, setServerError] = useState<string | null>(null);
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<GaCredentialForm>({ resolver: zodResolver(gaCredentialSchema) });
+
+  async function onSubmit(values: GaCredentialForm) {
+    setServerError(null);
+    try {
+      const res = await fetch("/api/settings/ga-credentials", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ brandSlug, ...values }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setServerError(data.error ?? "No se pudo guardar. Intenta de nuevo.");
+        return;
+      }
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch {
+      setServerError("No se pudo conectar con el servidor. Intenta de nuevo.");
+    }
+  }
+
+  return (
+    <Panel>
+      <div className="flex items-center gap-2 mb-4">
+        <span className="h-2.5 w-2.5 rounded-full" style={{ background: brandColor }} />
+        <h3 className="text-sm font-medium">{brandName}</h3>
+      </div>
+
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-3">
+        <div>
+          <label className="block text-xs font-medium text-muted mb-1">Property ID de GA4</label>
+          <input
+            {...register("propertyId")}
+            placeholder="123456789"
+            className="w-full rounded-md border border-border bg-surface-2 px-3 py-2 text-sm outline-none focus:border-accent"
+          />
+          {errors.propertyId && <p className="text-xs text-danger mt-1">{errors.propertyId.message}</p>}
+        </div>
+
+        <div>
+          <label className="block text-xs font-medium text-muted mb-1">JSON de la Service Account</label>
+          <textarea
+            {...register("serviceAccountJson")}
+            placeholder='{"type": "service_account", "client_email": "...", "private_key": "..."}'
+            rows={4}
+            className="w-full rounded-md border border-border bg-surface-2 px-3 py-2 text-xs font-mono outline-none focus:border-accent resize-none"
+          />
+          {errors.serviceAccountJson && <p className="text-xs text-danger mt-1">{errors.serviceAccountJson.message}</p>}
+        </div>
+
+        {serverError && <p className="text-xs text-danger">{serverError}</p>}
+
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className={cn(
+            "w-full rounded-md text-sm font-medium py-2 transition-colors",
+            saved ? "bg-success text-white" : "bg-accent text-accent-foreground hover:opacity-90"
+          )}
+        >
+          {saved ? (
+            <span className="flex items-center justify-center gap-1.5">
+              <CheckCircle2 className="h-4 w-4" /> Conectado
+            </span>
+          ) : isSubmitting ? (
+            "Probando conexión..."
+          ) : (
+            "Guardar y probar conexión"
+          )}
+        </button>
+      </form>
+    </Panel>
+  );
+}
+
 function OpenAiSettingsCard() {
   const [showKey, setShowKey] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [serverError, setServerError] = useState<string | null>(null);
   const {
     register,
     handleSubmit,
@@ -134,10 +239,23 @@ function OpenAiSettingsCard() {
   } = useForm<SettingsForm>({ resolver: zodResolver(settingsSchema) });
 
   async function onSubmit(values: SettingsForm) {
-    await new Promise((r) => setTimeout(r, 600));
-    console.log("Guardar OpenAI key", values);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
+    setServerError(null);
+    try {
+      const res = await fetch("/api/settings/openai-key", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(values),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setServerError(data.error ?? "No se pudo guardar. Intenta de nuevo.");
+        return;
+      }
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch {
+      setServerError("No se pudo conectar con el servidor. Intenta de nuevo.");
+    }
   }
 
   return (
@@ -158,6 +276,7 @@ function OpenAiSettingsCard() {
           </div>
           {errors.openaiApiKey && <p className="text-xs text-danger mt-1">{errors.openaiApiKey.message}</p>}
         </div>
+        {serverError && <p className="text-xs text-danger">{serverError}</p>}
         <button
           type="submit"
           disabled={isSubmitting}
@@ -185,13 +304,38 @@ export default function ConfiguracionPage() {
           </p>
         </div>
 
+        <BrandingCard />
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {BRANDS.map((b) => (
-            <BrandCredentialCard key={b.slug} brandName={b.name} brandColor={b.themeColor} />
+            <BrandCredentialCard key={b.slug} brandSlug={b.slug} brandName={b.name} brandColor={b.themeColor} />
           ))}
         </div>
 
         <OpenAiSettingsCard />
+
+        <div>
+          <h3 className="text-base font-semibold tracking-tight mb-1">Google Analytics 4</h3>
+          <p className="text-sm text-muted mb-4">
+            Conecta el Property de GA4 de cada marca usando una Service Account con acceso de lectura.
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {BRANDS.map((b) => (
+              <GaCredentialCard key={b.slug} brandSlug={b.slug} brandName={b.name} brandColor={b.themeColor} />
+            ))}
+          </div>
+        </div>
+
+        <Panel title="Cómo obtener tus credenciales de Google Analytics">
+          <ol className="text-sm text-foreground/90 space-y-2 list-decimal list-inside">
+            <li>Ve a <code className="text-xs bg-surface-2 px-1 py-0.5 rounded">console.cloud.google.com</code> → crea o selecciona un proyecto.</li>
+            <li>Ve a &ldquo;APIs y servicios&rdquo; → &ldquo;Biblioteca&rdquo; → busca y habilita &ldquo;Google Analytics Data API&rdquo;.</li>
+            <li>Ve a &ldquo;IAM y administración&rdquo; → &ldquo;Cuentas de servicio&rdquo; → &ldquo;Crear cuenta de servicio&rdquo;.</li>
+            <li>Una vez creada, entra a ella → pestaña &ldquo;Claves&rdquo; → &ldquo;Agregar clave&rdquo; → &ldquo;Crear clave nueva&rdquo; → formato JSON. Se descarga un archivo — ábrelo y copia todo su contenido.</li>
+            <li>Ve a <code className="text-xs bg-surface-2 px-1 py-0.5 rounded">analytics.google.com</code> → Administrador → selecciona tu Property → &ldquo;Gestión de acceso a la propiedad&rdquo; → agrega el correo de la cuenta de servicio (termina en <code className="text-xs bg-surface-2 px-1 py-0.5 rounded">@...iam.gserviceaccount.com</code>) con rol &ldquo;Viewer&rdquo;.</li>
+            <li>El Property ID lo encuentras en Administrador → &ldquo;Detalles de la propiedad&rdquo; (es un número, no el Measurement ID que empieza con G-).</li>
+          </ol>
+        </Panel>
 
         <Panel title="Cómo obtener tus credenciales de Meta">
           <ol className="text-sm text-foreground/90 space-y-2 list-decimal list-inside">

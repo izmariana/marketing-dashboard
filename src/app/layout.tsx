@@ -7,8 +7,8 @@ import "./globals.css";
 // globals.css porque este entorno de generación no tiene salida a Google Fonts.
 
 export const metadata: Metadata = {
-  title: "Marketing Intelligence Dashboard",
-  description: "Monitoreo, análisis y optimización de Meta Ads para Informes Comerciales, Inversiones Cinco y Segal Deudores",
+  title: "Marketing Segal",
+  description: "Monitoreo, análisis y optimización de Meta Ads, Google Analytics, TikTok e Instagram/Facebook para Informes Comerciales, Inversiones Cinco y Segal Deudores",
 };
 
 export default function RootLayout({

@@ -6,6 +6,7 @@ import { Panel } from "@/components/dashboard/panel";
 import { KpiCard } from "@/components/dashboard/kpi-card";
 import { EvolutionChart } from "@/components/charts/evolution-chart";
 import { useBrandMetrics } from "@/hooks/use-brand-metrics";
+import { MetricHistoryPanel, type MetricHistoryTarget } from "@/components/dashboard/metric-history-panel";
 import { formatCurrencyCLP, formatNumber, formatPercent, formatCompact, cn } from "@/lib/utils";
 import { AlertTriangle, TrendingUp, TrendingDown } from "lucide-react";
 
@@ -29,7 +30,12 @@ const STATUS_LABEL: Record<string, string> = {
 
 export function BrandDashboard({ slug }: { slug: string }) {
   const [days, setDays] = useState(30);
+  const [historyTarget, setHistoryTarget] = useState<MetricHistoryTarget | null>(null);
   const { data, isLoading, error } = useBrandMetrics(slug, days);
+
+  function openHistory(metric: string, label: string, formatter: (v: number) => string) {
+    setHistoryTarget({ source: "meta", metric, brand: slug, label, formatter });
+  }
 
   if (error) {
     return <div className="p-6 text-sm text-danger">No se pudo cargar la información de la marca.</div>;
@@ -73,18 +79,18 @@ export function BrandDashboard({ slug }: { slug: string }) {
         ) : (
           <>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <KpiCard label="Inversión" value={formatCurrencyCLP(data.current.spend)} changePercent={pctChange(data.current.spend, data.previous.spend)} />
-              <KpiCard label="Alcance" value={formatCompact(data.current.reach)} changePercent={pctChange(data.current.reach, data.previous.reach)} />
-              <KpiCard label="Impresiones" value={formatCompact(data.current.impressions)} changePercent={pctChange(data.current.impressions, data.previous.impressions)} />
-              <KpiCard label="Clicks" value={formatCompact(data.current.clicks)} changePercent={pctChange(data.current.clicks, data.previous.clicks)} />
-              <KpiCard label="CTR" value={formatPercent(data.current.ctr)} changePercent={pctChange(data.current.ctr, data.previous.ctr)} />
-              <KpiCard label="CPC" value={formatCurrencyCLP(data.current.cpc)} changePercent={pctChange(data.current.cpc, data.previous.cpc)} direction="down-is-good" />
-              <KpiCard label="CPM" value={formatCurrencyCLP(data.current.cpm)} changePercent={pctChange(data.current.cpm, data.previous.cpm)} direction="down-is-good" />
-              <KpiCard label="Leads" value={formatNumber(data.current.leads)} changePercent={pctChange(data.current.leads, data.previous.leads)} />
-              <KpiCard label="CPL" value={formatCurrencyCLP(data.current.cpl)} changePercent={pctChange(data.current.cpl, data.previous.cpl)} direction="down-is-good" />
-              <KpiCard label="Conversiones" value={formatNumber(data.current.conversions)} changePercent={pctChange(data.current.conversions, data.previous.conversions)} />
-              <KpiCard label="Tasa de conversión" value={formatPercent(data.current.conversionRate)} changePercent={pctChange(data.current.conversionRate, data.previous.conversionRate)} />
-              <KpiCard label="Frecuencia" value={data.current.frequency.toFixed(2)} changePercent={pctChange(data.current.frequency, data.previous.frequency)} direction="down-is-good" />
+              <KpiCard label="Inversión" value={formatCurrencyCLP(data.current.spend)} changePercent={pctChange(data.current.spend, data.previous.spend)} onClick={() => openHistory("spend", "Inversión", formatCurrencyCLP)} />
+              <KpiCard label="Alcance" value={formatCompact(data.current.reach)} changePercent={pctChange(data.current.reach, data.previous.reach)} onClick={() => openHistory("reach", "Alcance", formatCompact)} />
+              <KpiCard label="Impresiones" value={formatCompact(data.current.impressions)} changePercent={pctChange(data.current.impressions, data.previous.impressions)} onClick={() => openHistory("impressions", "Impresiones", formatCompact)} />
+              <KpiCard label="Clicks" value={formatCompact(data.current.clicks)} changePercent={pctChange(data.current.clicks, data.previous.clicks)} onClick={() => openHistory("clicks", "Clicks", formatCompact)} />
+              <KpiCard label="CTR" value={formatPercent(data.current.ctr)} changePercent={pctChange(data.current.ctr, data.previous.ctr)} onClick={() => openHistory("ctr", "CTR", formatPercent)} />
+              <KpiCard label="CPC" value={formatCurrencyCLP(data.current.cpc)} changePercent={pctChange(data.current.cpc, data.previous.cpc)} direction="down-is-good" onClick={() => openHistory("cpc", "CPC", formatCurrencyCLP)} />
+              <KpiCard label="CPM" value={formatCurrencyCLP(data.current.cpm)} changePercent={pctChange(data.current.cpm, data.previous.cpm)} direction="down-is-good" onClick={() => openHistory("cpm", "CPM", formatCurrencyCLP)} />
+              <KpiCard label="Leads" value={formatNumber(data.current.leads)} changePercent={pctChange(data.current.leads, data.previous.leads)} onClick={() => openHistory("leads", "Leads", formatNumber)} />
+              <KpiCard label="CPL" value={formatCurrencyCLP(data.current.cpl)} changePercent={pctChange(data.current.cpl, data.previous.cpl)} direction="down-is-good" onClick={() => openHistory("cpl", "CPL", formatCurrencyCLP)} />
+              <KpiCard label="Conversiones" value={formatNumber(data.current.conversions)} changePercent={pctChange(data.current.conversions, data.previous.conversions)} onClick={() => openHistory("conversions", "Conversiones", formatNumber)} />
+              <KpiCard label="Tasa de conversión" value={formatPercent(data.current.conversionRate)} changePercent={pctChange(data.current.conversionRate, data.previous.conversionRate)} onClick={() => openHistory("conversionRate", "Tasa de conversión", formatPercent)} />
+              <KpiCard label="Frecuencia" value={data.current.frequency.toFixed(2)} changePercent={pctChange(data.current.frequency, data.previous.frequency)} direction="down-is-good" onClick={() => openHistory("frequency", "Frecuencia", (v) => v.toFixed(2))} />
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -105,7 +111,10 @@ export function BrandDashboard({ slug }: { slug: string }) {
                             alert.severity === "CRITICAL" ? "text-danger" : alert.severity === "WARNING" ? "text-warning" : "text-muted"
                           )}
                         />
-                        <p className="text-xs text-foreground/90">{alert.message}</p>
+                        <div>
+                          <p className="text-xs text-foreground/90">{alert.message}</p>
+                          {alert.recommendation && <p className="text-xs text-accent mt-1">{alert.recommendation}</p>}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -160,6 +169,8 @@ export function BrandDashboard({ slug }: { slug: string }) {
           </>
         )}
       </div>
+
+      <MetricHistoryPanel target={historyTarget} onClose={() => setHistoryTarget(null)} />
     </div>
   );
 }

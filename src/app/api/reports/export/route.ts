@@ -3,28 +3,37 @@ import { getBrandReportData } from "@/lib/services/report-data";
 import { generateCsvReport, generateXlsxReport, generatePdfReport } from "@/lib/services/report-service";
 import { getPrisma, isDatabaseConfigured } from "@/lib/db/prisma";
 import { auth } from "@/lib/auth/auth";
+import { getPeriodRange, type ReportPeriod } from "@/lib/utils/report-periods";
 
 /**
- * GET /api/reports/export?brand=&format=csv|xlsx|pdf&days=30
- * Genera y descarga el reporte en el formato solicitado. Si hay base de
- * datos conectada, además registra el reporte en la tabla Report para que
- * quede disponible en el historial de la página Reportes.
+ * GET /api/reports/export?brand=&format=csv|xlsx|pdf&period=daily|weekly|monthly|quarterly|yearly
+ * GET /api/reports/export?brand=&format=csv|xlsx|pdf&days=30   (compatibilidad hacia atrás)
+ *
+ * Genera y descarga el reporte en el formato solicitado, alineado al
+ * período de calendario solicitado (no solo "últimos N días"). Si hay base
+ * de datos conectada, además registra el reporte en la tabla Report.
  */
 export async function GET(req: NextRequest) {
   const brand = req.nextUrl.searchParams.get("brand");
   const format = req.nextUrl.searchParams.get("format") ?? "pdf";
+  const periodParam = req.nextUrl.searchParams.get("period") as ReportPeriod | null;
   const days = Number(req.nextUrl.searchParams.get("days") ?? "30");
 
   if (!brand) return NextResponse.json({ error: "Falta el parámetro 'brand'" }, { status: 400 });
 
+  const range = periodParam ? getPeriodRange(periodParam) : null;
+
   let data;
   try {
-    data = await getBrandReportData(brand, days);
+    data = range
+      ? await getBrandReportData(brand, { since: range.since, until: range.until }, range.label)
+      : await getBrandReportData(brand, days);
   } catch {
     return NextResponse.json({ error: "Marca no encontrada" }, { status: 404 });
   }
 
-  const fileNameBase = `reporte-${data.brand.slug}-${new Date().toISOString().slice(0, 10)}`;
+  const rangeLabel = range ? periodParam : `${days}d`;
+  const fileNameBase = `reporte-${data.brand.slug}-${rangeLabel}-${new Date().toISOString().slice(0, 10)}`;
 
   if (isDatabaseConfigured) {
     try {
@@ -32,9 +41,12 @@ export async function GET(req: NextRequest) {
       const prisma = await getPrisma();
       const userId = (session?.user as { id?: string } | undefined)?.id;
       if (userId) {
-        const periodEnd = new Date();
-        const periodStart = new Date();
-        periodStart.setDate(periodStart.getDate() - days);
+        const periodEnd = range?.until ?? new Date();
+        const periodStart = range?.since ?? (() => {
+          const d = new Date();
+          d.setDate(d.getDate() - days);
+          return d;
+        })();
         await prisma.report.create({
           data: {
             createdById: userId,

@@ -1,18 +1,18 @@
 import OpenAI from "openai";
 import type { AiPostInsight } from "@/types/domain";
 
-function getClient() {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
+function getClient(apiKey?: string) {
+  const key = apiKey ?? process.env.OPENAI_API_KEY;
+  if (!key) {
     throw new Error(
       "OPENAI_API_KEY no está configurada. Ingrésala en Configuración o en .env"
     );
   }
-  return new OpenAI({ apiKey });
+  return new OpenAI({ apiKey: key });
 }
 
-async function completeJson<T>(systemPrompt: string, userPrompt: string): Promise<T> {
-  const client = getClient();
+async function completeJson<T>(systemPrompt: string, userPrompt: string, apiKey?: string): Promise<T> {
+  const client = getClient(apiKey);
   const completion = await client.chat.completions.create({
     model: "gpt-4o",
     temperature: 0.4,
@@ -31,12 +31,15 @@ async function completeJson<T>(systemPrompt: string, userPrompt: string): Promis
 // Análisis IA por publicación
 // ---------------------------------------------------------------------------
 
-export async function analyzePostWithAI(post: {
-  copy: string;
-  network: string;
-  type: string;
-  metrics: Record<string, number>;
-}): Promise<AiPostInsight> {
+export async function analyzePostWithAI(
+  post: {
+    copy: string;
+    network: string;
+    type: string;
+    metrics: Record<string, number>;
+  },
+  apiKey?: string
+): Promise<AiPostInsight> {
   const systemPrompt = `Eres un estratega senior de marketing digital especializado en Meta Ads
 y contenido orgánico en Facebook e Instagram para el mercado chileno. Responde SIEMPRE
 en JSON válido con las claves: whyItWorked, whatToReplicate, whatToImprove, similarIdeas,
@@ -50,7 +53,7 @@ Métricas: ${JSON.stringify(post.metrics)}
 
 Genera el análisis solicitado.`;
 
-  return completeJson<AiPostInsight>(systemPrompt, userPrompt);
+  return completeJson<AiPostInsight>(systemPrompt, userPrompt, apiKey);
 }
 
 // ---------------------------------------------------------------------------
@@ -76,7 +79,8 @@ export interface ExecutiveSummaryOutput {
 }
 
 export async function generateExecutiveSummary(
-  input: ExecutiveSummaryInput
+  input: ExecutiveSummaryInput,
+  apiKey?: string
 ): Promise<ExecutiveSummaryOutput> {
   const systemPrompt = `Eres el Marketing Advisor IA de un dashboard de inteligencia de marketing.
 Escribes en español, con lenguaje ejecutivo apto para presentar a gerencia (directo, sin
@@ -95,5 +99,5 @@ Top publicaciones: ${JSON.stringify(input.topPosts)}
 
 Genera el informe ejecutivo solicitado, comparando contra el período anterior explícitamente.`;
 
-  return completeJson<ExecutiveSummaryOutput>(systemPrompt, userPrompt);
+  return completeJson<ExecutiveSummaryOutput>(systemPrompt, userPrompt, apiKey);
 }

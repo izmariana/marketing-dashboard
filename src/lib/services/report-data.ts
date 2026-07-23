@@ -9,6 +9,7 @@ import {
   type BenchmarkStatus,
 } from "@/lib/services/recommendation-engine";
 import { generateExecutiveSummary, type ExecutiveSummaryOutput } from "@/lib/services/openai-client";
+import { resolveOpenAiApiKey } from "@/lib/services/settings-resolver";
 
 function mockExecutiveSummary(brandName: string, current: MetricPoint, previous: MetricPoint): ExecutiveSummaryOutput {
   const spendChange = previous.spend > 0 ? ((current.spend - previous.spend) / previous.spend) * 100 : 0;
@@ -73,9 +74,34 @@ export interface BrandReportData {
  * (OpenAI real si hay API Key, simulado si no). Una sola fuente de verdad
  * para ambas páginas.
  */
-export async function getBrandReportData(brandSlug: string, days = 30): Promise<BrandReportData> {
+export interface DateRange {
+  since: Date;
+  until: Date;
+}
+
+export async function getBrandReportData(brandSlug: string, daysOrRange: number | DateRange = 30, periodLabelOverride?: string): Promise<BrandReportData> {
   const brand = BRANDS.find((b) => b.slug === brandSlug);
   if (!brand) throw new Error(`Marca no encontrada: ${brandSlug}`);
+
+  let currentEnd: Date;
+  let currentSince: Date;
+  let days: number;
+
+  if (typeof daysOrRange === "number") {
+    days = daysOrRange;
+    currentEnd = new Date();
+    currentSince = new Date(currentEnd);
+    currentSince.setDate(currentSince.getDate() - (days - 1));
+  } else {
+    currentSince = daysOrRange.since;
+    currentEnd = daysOrRange.until;
+    days = Math.max(1, Math.round((currentEnd.getTime() - currentSince.getTime()) / 86400000) + 1);
+  }
+
+  const previousEnd = new Date(currentSince);
+  previousEnd.setDate(previousEnd.getDate() - 1);
+  const previousSince = new Date(previousEnd);
+  previousSince.setDate(previousSince.getDate() - (days - 1));
 
   let current: MetricPoint;
   let previous: MetricPoint;
@@ -83,10 +109,6 @@ export async function getBrandReportData(brandSlug: string, days = 30): Promise<
   let topPosts: { copy: string; engagement: number; performanceScore: number }[];
 
   if (!isDatabaseConfigured) {
-    const currentEnd = new Date();
-    const previousEnd = new Date();
-    previousEnd.setDate(previousEnd.getDate() - days);
-
     current = aggregateMetrics(generateDailyMetrics(brand.slug as BrandSlug, days, currentEnd));
     previous = aggregateMetrics(generateDailyMetrics(brand.slug as BrandSlug, days, previousEnd));
 
@@ -103,14 +125,10 @@ export async function getBrandReportData(brandSlug: string, days = 30): Promise<
       .map((p) => ({ copy: p.copy, engagement: p.engagement, performanceScore: p.performanceScore }));
   } else {
     const prisma = await getPrisma();
-    const since = new Date();
-    since.setDate(since.getDate() - days);
-    const prevSince = new Date();
-    prevSince.setDate(prevSince.getDate() - days * 2);
 
     const [currentSnaps, previousSnaps, campaigns, posts] = await Promise.all([
-      prisma.metricSnapshot.findMany({ where: { brand: { slug: brand.slug as never }, grain: "DAILY", date: { gte: since } } }),
-      prisma.metricSnapshot.findMany({ where: { brand: { slug: brand.slug as never }, grain: "DAILY", date: { gte: prevSince, lt: since } } }),
+      prisma.metricSnapshot.findMany({ where: { brand: { slug: brand.slug as never }, grain: "DAILY", date: { gte: currentSince, lte: currentEnd } } }),
+      prisma.metricSnapshot.findMany({ where: { brand: { slug: brand.slug as never }, grain: "DAILY", date: { gte: previousSince, lte: previousEnd } } }),
       prisma.campaign.findMany({ where: { brand: { slug: brand.slug as never } }, include: { metricSnapshots: true }, take: 20 }),
       prisma.post.findMany({ where: { brand: { slug: brand.slug as never } }, orderBy: { performanceScore: "desc" }, take: 3 }),
     ]);
@@ -163,8 +181,9 @@ export async function getBrandReportData(brandSlug: string, days = 30): Promise<
     engagementRate: { value: engagementRate, status: compareToBenchmark("engagementRate", engagementRate), reference: BENCHMARKS_CHILE.engagementRate },
   };
 
-  const hasOpenAiKey = Boolean(process.env.OPENAI_API_KEY);
-  const periodLabel = `Últimos ${days} días`;
+  const apiKey = await resolveOpenAiApiKey();
+  const hasOpenAiKey = Boolean(apiKey);
+  const periodLabel = periodLabelOverride ?? `Últimos ${days} días`;
 
   let executiveSummary: ExecutiveSummaryOutput;
   if (hasOpenAiKey) {
@@ -176,7 +195,7 @@ export async function getBrandReportData(brandSlug: string, days = 30): Promise<
         previousMetrics: previous as unknown as Record<string, number>,
         topCampaigns,
         topPosts,
-      });
+      }, apiKey);
     } catch {
       executiveSummary = mockExecutiveSummary(brand.name, current, previous);
     }

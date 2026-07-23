@@ -1,19 +1,41 @@
 "use client";
 
 import { useState } from "react";
-import { Moon, Sun, Bell, RefreshCw, LogOut } from "lucide-react";
+import { Moon, Sun, Bell, RefreshCw, LogOut, CheckCircle2, AlertCircle } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useTheme } from "@/app/providers";
 import { cn } from "@/lib/utils";
 
 export function Topbar({ title, alertCount = 0 }: { title: string; alertCount?: number }) {
   const { theme, toggle } = useTheme();
   const { data: session } = useSession();
+  const queryClient = useQueryClient();
   const [syncing, setSyncing] = useState(false);
+  const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
 
-  function handleSync() {
+  async function handleSync() {
     setSyncing(true);
-    setTimeout(() => setSyncing(false), 1800); // Fase 2: dispara job real de sync Meta API
+    setResult(null);
+    try {
+      const res = await fetch("/api/sync", { method: "POST" });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setResult({ ok: false, message: data.error ?? "No se pudo sincronizar." });
+      } else if (data.synced === false) {
+        setResult({ ok: false, message: data.reason ?? "Sincronización no disponible en modo simulado." });
+      } else {
+        setResult({ ok: true, message: "Datos actualizados" });
+        // Refresca todos los datos ya cargados en pantalla con lo recién sincronizado
+        queryClient.invalidateQueries();
+      }
+    } catch {
+      setResult({ ok: false, message: "No se pudo conectar con el servidor." });
+    } finally {
+      setSyncing(false);
+      setTimeout(() => setResult(null), 4000);
+    }
   }
 
   return (
@@ -21,9 +43,17 @@ export function Topbar({ title, alertCount = 0 }: { title: string; alertCount?: 
       <h1 className="text-sm font-medium text-foreground">{title}</h1>
 
       <div className="flex items-center gap-2">
+        {result && (
+          <span className={cn("flex items-center gap-1.5 text-xs font-medium", result.ok ? "text-success" : "text-danger")}>
+            {result.ok ? <CheckCircle2 className="h-3.5 w-3.5" /> : <AlertCircle className="h-3.5 w-3.5" />}
+            {result.message}
+          </span>
+        )}
+
         <button
           onClick={handleSync}
-          className="flex items-center gap-1.5 text-xs font-medium rounded-md border border-border px-2.5 py-1.5 hover:bg-surface transition-colors"
+          disabled={syncing}
+          className="flex items-center gap-1.5 text-xs font-medium rounded-md border border-border px-2.5 py-1.5 hover:bg-surface transition-colors disabled:opacity-60"
         >
           <RefreshCw className={cn("h-3.5 w-3.5", syncing && "animate-spin")} />
           {syncing ? "Actualizando..." : "Actualizar ahora"}
