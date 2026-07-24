@@ -35,7 +35,7 @@ export default function CampanasPage() {
   const [objectiveFilter, setObjectiveFilter] = useState<string>("");
   const [selectedCampaign, setSelectedCampaign] = useState<{ id: string; name: string } | null>(null);
 
-  const { data, isLoading } = useCampaigns({
+  const { data, isLoading, error } = useCampaigns({
     brand: brandFilter || undefined,
     status: statusFilter || undefined,
     objective: objectiveFilter || undefined,
@@ -87,7 +87,9 @@ export default function CampanasPage() {
 
         {view === "tabla" ? (
           <Panel title="Listado de campañas" description={`${data?.campaigns.length ?? 0} campañas en los últimos 30 días`}>
-            {isLoading ? (
+            {error ? (
+              <p className="text-sm text-danger">No se pudieron cargar las campañas: {error instanceof Error ? error.message : "error desconocido"}.</p>
+            ) : isLoading ? (
               <div className="space-y-2">
                 {Array.from({ length: 5 }).map((_, i) => (
                   <div key={i} className="h-10 rounded-md bg-surface-2 animate-pulse" />

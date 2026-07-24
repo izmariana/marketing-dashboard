@@ -43,8 +43,8 @@ export function Topbar({ title, alertCount = 0 }: { title: string; alertCount?: 
         // Refresca todos los datos ya cargados en pantalla con lo recién sincronizado
         queryClient.invalidateQueries();
       }
-    } catch {
-      setResult({ ok: false, message: "No se pudo conectar con el servidor." });
+    } catch (err) {
+      setResult({ ok: false, message: err instanceof Error ? `Error de conexión: ${err.message}` : "No se pudo conectar con el servidor." });
     } finally {
       setSyncing(false);
       setTimeout(() => setResult(null), 8000);

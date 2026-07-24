@@ -169,9 +169,6 @@ export async function syncBrand(brandId: string, days = 30): Promise<SyncResult>
 export async function syncAllBrands(days = 30): Promise<SyncResult[]> {
   const prisma = await getPrisma();
   const brands = await prisma.brand.findMany({ where: { metaCredential: { isNot: null } } });
-  const results: SyncResult[] = [];
-  for (const brand of brands) {
-    results.push(await syncBrand(brand.id, days));
-  }
-  return results;
+  type BrandRow = (typeof brands)[number];
+  return Promise.all(brands.map((brand: BrandRow) => syncBrand(brand.id, days)));
 }

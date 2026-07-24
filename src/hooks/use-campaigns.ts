@@ -19,7 +19,10 @@ export function useCampaigns(filters: CampaignFilters) {
     queryKey: ["campaigns", filters],
     queryFn: async () => {
       const res = await fetch(`/api/campaigns?${params.toString()}`);
-      if (!res.ok) throw new Error("No se pudieron cargar las campañas");
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.error ?? `No se pudieron cargar las campañas (código ${res.status})`);
+      }
       return res.json();
     },
   });

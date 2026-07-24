@@ -121,9 +121,6 @@ export async function syncGaBrand(brandId: string, days = 30): Promise<GaSyncRes
 export async function syncAllGaBrands(days = 30): Promise<GaSyncResult[]> {
   const prisma = await getPrisma();
   const brands = await prisma.brand.findMany({ where: { gaCredential: { isNot: null } } });
-  const results: GaSyncResult[] = [];
-  for (const brand of brands) {
-    results.push(await syncGaBrand(brand.id, days));
-  }
-  return results;
+  type BrandRow = (typeof brands)[number];
+  return Promise.all(brands.map((brand: BrandRow) => syncGaBrand(brand.id, days)));
 }

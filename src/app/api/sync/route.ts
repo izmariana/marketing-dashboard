@@ -5,6 +5,11 @@ import { syncAllBrands, syncBrand } from "@/lib/services/sync-service";
 import { syncAllGaBrands, syncGaBrand } from "@/lib/services/ga-sync-service";
 import { generateAlertsForAllBrands } from "@/lib/services/alert-service";
 
+// Traer datos de Meta + Google Analytics de varias marcas puede tardar más
+// que el límite por defecto de una función serverless — se amplía el tiempo
+// máximo permitido para esta ruta específica.
+export const maxDuration = 60;
+
 /**
  * POST /api/sync            → sincroniza Meta y Google Analytics de todas las marcas
  * POST /api/sync?brandId=xx → sincroniza solo una marca
@@ -17,8 +22,12 @@ async function runSync(brandId?: string) {
     return { synced: false, reason: "USE_MOCK_DATA está activo o falta DATABASE_URL. Nada que sincronizar todavía." };
   }
 
-  const metaResults = brandId ? [await syncBrand(brandId)] : await syncAllBrands();
-  const gaResults = brandId ? [await syncGaBrand(brandId)] : await syncAllGaBrands();
+  // Meta y Google Analytics se sincronizan en paralelo (no uno después del
+  // otro) para reducir el tiempo total y evitar que la función se corte.
+  const [metaResults, gaResults] = await Promise.all([
+    brandId ? [await syncBrand(brandId)] : syncAllBrands(),
+    brandId ? [await syncGaBrand(brandId)] : syncAllGaBrands(),
+  ]);
   const alertsCreated = await generateAlertsForAllBrands();
 
   return { synced: true, meta: metaResults, googleAnalytics: gaResults, alertsCreated };

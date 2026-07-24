@@ -74,13 +74,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "El favicon es muy pesado. Usa una imagen más liviana." }, { status: 400 });
   }
 
-  const prisma = await getPrisma();
-  const existing = await prisma.appSettings.findFirst();
+  let prisma;
+  try {
+    prisma = await getPrisma();
+    const existing = await prisma.appSettings.findFirst();
 
-  if (existing) {
-    await prisma.appSettings.update({ where: { id: existing.id }, data: parsed.data });
-  } else {
-    await prisma.appSettings.create({ data: parsed.data });
+    if (existing) {
+      await prisma.appSettings.update({ where: { id: existing.id }, data: parsed.data });
+    } else {
+      await prisma.appSettings.create({ data: parsed.data });
+    }
+  } catch (err) {
+    console.error("Error guardando branding:", err);
+    return NextResponse.json(
+      { error: err instanceof Error ? `Error de base de datos: ${err.message}` : "Error desconocido al guardar." },
+      { status: 500 }
+    );
   }
 
   return NextResponse.json({ ok: true });
