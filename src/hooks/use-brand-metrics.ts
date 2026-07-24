@@ -15,7 +15,10 @@ export function useBrandMetrics(slug: string, days: number) {
     queryKey: ["brand-metrics", slug, days],
     queryFn: async () => {
       const res = await fetch(`/api/metrics/${slug}?days=${days}`);
-      if (!res.ok) throw new Error("No se pudo cargar la marca");
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.error ?? `No se pudo cargar la marca (código ${res.status})`);
+      }
       return res.json();
     },
   });

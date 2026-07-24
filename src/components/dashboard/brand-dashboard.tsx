@@ -38,7 +38,7 @@ export function BrandDashboard({ slug }: { slug: string }) {
   }
 
   if (error) {
-    return <div className="p-6 text-sm text-danger">No se pudo cargar la información de la marca.</div>;
+    return <div className="p-6 text-sm text-danger">{error instanceof Error ? error.message : "No se pudo cargar la información de la marca."}</div>;
   }
 
   return (
