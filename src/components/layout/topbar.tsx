@@ -26,7 +26,20 @@ export function Topbar({ title, alertCount = 0 }: { title: string; alertCount?: 
       } else if (data.synced === false) {
         setResult({ ok: false, message: data.reason ?? "Sincronización no disponible en modo simulado." });
       } else {
-        setResult({ ok: true, message: "Datos actualizados" });
+        type SyncOutcome = { brandSlug: string; error?: string };
+        const metaErrors = ((data.meta ?? []) as SyncOutcome[]).filter((r) => r.error);
+        const gaErrors = ((data.googleAnalytics ?? []) as SyncOutcome[]).filter((r) => r.error);
+        const allErrors = [...metaErrors, ...gaErrors];
+
+        if (allErrors.length > 0) {
+          const first = allErrors[0];
+          setResult({
+            ok: false,
+            message: `${first.brandSlug}: ${first.error}${allErrors.length > 1 ? ` (+${allErrors.length - 1} más)` : ""}`,
+          });
+        } else {
+          setResult({ ok: true, message: "Datos actualizados" });
+        }
         // Refresca todos los datos ya cargados en pantalla con lo recién sincronizado
         queryClient.invalidateQueries();
       }
@@ -34,7 +47,7 @@ export function Topbar({ title, alertCount = 0 }: { title: string; alertCount?: 
       setResult({ ok: false, message: "No se pudo conectar con el servidor." });
     } finally {
       setSyncing(false);
-      setTimeout(() => setResult(null), 4000);
+      setTimeout(() => setResult(null), 8000);
     }
   }
 

@@ -134,16 +134,24 @@ export function BrandingCard() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ platformName, companyName, logoDataUrl, faviconDataUrl, primaryColor, secondaryColor }),
       });
-      const data = await res.json();
+
+      let data: { error?: string; details?: unknown } = {};
+      try {
+        data = await res.json();
+      } catch {
+        setServerError(`El servidor respondió con un error inesperado (código ${res.status}). Intenta de nuevo en un momento.`);
+        return;
+      }
+
       if (!res.ok) {
-        setServerError(data.error ?? "No se pudo guardar el branding.");
+        setServerError(data.error ?? `No se pudo guardar (código ${res.status}).`);
         return;
       }
       setSaved(true);
       queryClient.invalidateQueries({ queryKey: ["branding"] });
       setTimeout(() => setSaved(false), 2500);
-    } catch {
-      setServerError("No se pudo conectar con el servidor.");
+    } catch (err) {
+      setServerError(err instanceof Error ? `No se pudo conectar con el servidor: ${err.message}` : "No se pudo conectar con el servidor.");
     } finally {
       setSaving(false);
     }

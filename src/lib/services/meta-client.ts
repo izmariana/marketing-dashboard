@@ -52,6 +52,8 @@ async function metaFetch<T>(path: string, params: Record<string, string>): Promi
 // ---------------------------------------------------------------------------
 
 export const META_INSIGHT_FIELDS = [
+  "campaign_id",
+  "campaign_name",
   "spend",
   "reach",
   "impressions",
