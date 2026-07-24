@@ -1,15 +1,17 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
+import { getPrisma, isDatabaseConfigured } from "@/lib/db/prisma";
 
 /**
  * Autenticación por credenciales (email + contraseña) con dos roles:
  * ADMIN (acceso total, incluye Configuración) e INVITADO (solo lectura,
  * sin acceso a Configuración ni a edición de credenciales Meta/OpenAI).
  *
- * En producción, reemplaza `findUserByEmail` por una consulta real a la
- * tabla User vía Prisma. Aquí se deja un usuario admin de demostración
- * para poder entrar sin base de datos configurada todavía.
+ * Con base de datos conectada (USE_MOCK_DATA=false), los usuarios se leen
+ * de verdad desde la tabla User vía Prisma. Sin base de datos (modo
+ * simulado), se usa un usuario de demostración en memoria para poder
+ * probar la app sin configurar nada todavía.
  */
 
 interface DemoUser {
@@ -20,19 +22,24 @@ interface DemoUser {
   role: "ADMIN" | "GUEST";
 }
 
-// Hash de "admin123" — SOLO para demo local. Cambiar en producción vía DB.
+// Hash real de "admin123" (bcrypt) — solo se usa en modo simulado, sin DB.
 const DEMO_USERS: DemoUser[] = [
   {
     id: "demo-admin",
     name: "Administrador",
     email: "admin@dashboard.cl",
-    passwordHash: "$2b$10$H8n0KfVJ8m8m8v3H0k1J7uQeYb1nWc0F4rYQdQeQe0eQe0eQe0eQe",
+    passwordHash: "$2b$10$lylYE4VUE0igPcVQD7HmqevkM8ojlv9Q27ug4G/pExzPIFEtqDCJa",
     role: "ADMIN",
   },
 ];
 
 async function findUserByEmail(email: string) {
-  // TODO Fase 2: reemplazar por prisma.user.findUnique({ where: { email } })
+  if (isDatabaseConfigured) {
+    const prisma = await getPrisma();
+    const user = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
+    if (!user) return null;
+    return { id: user.id, name: user.name, email: user.email, passwordHash: user.passwordHash, role: user.role };
+  }
   return DEMO_USERS.find((u) => u.email.toLowerCase() === email.toLowerCase()) ?? null;
 }
 
@@ -53,9 +60,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         const user = await findUserByEmail(email);
         if (!user) return null;
 
-        // Modo demo: acepta "admin123" sin verificar hash si no hay DB conectada.
-        const isDemoBypass = password === "admin123" && process.env.DATABASE_URL === undefined;
-        const valid = isDemoBypass || (await bcrypt.compare(password, user.passwordHash).catch(() => false));
+        const valid = await bcrypt.compare(password, user.passwordHash).catch(() => false);
         if (!valid) return null;
 
         return { id: user.id, name: user.name, email: user.email, role: user.role };
@@ -64,11 +69,17 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   ],
   callbacks: {
     jwt: async ({ token, user }) => {
-      if (user) token.role = (user as { role: string }).role;
+      if (user) {
+        token.role = (user as { role: string }).role;
+        token.id = (user as { id: string }).id;
+      }
       return token;
     },
     session: async ({ session, token }) => {
-      if (session.user) (session.user as { role?: string }).role = token.role as string;
+      if (session.user) {
+        (session.user as { role?: string }).role = token.role as string;
+        (session.user as { id?: string }).id = token.id as string;
+      }
       return session;
     },
   },

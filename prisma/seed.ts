@@ -18,6 +18,23 @@ async function main() {
     console.log(`Marca lista: ${brand.name}`);
   }
 
+  // Usuario administrador real — contraseña: admin123 (cámbiala apenas puedas)
+  const adminEmail = "admin@dashboard.cl";
+  const existingAdmin = await prisma.user.findUnique({ where: { email: adminEmail } });
+  if (!existingAdmin) {
+    await prisma.user.create({
+      data: {
+        name: "Administrador",
+        email: adminEmail,
+        passwordHash: "$2b$10$lylYE4VUE0igPcVQD7HmqevkM8ojlv9Q27ug4G/pExzPIFEtqDCJa",
+        role: "ADMIN",
+      },
+    });
+    console.log(`Usuario administrador creado: ${adminEmail} (contraseña: admin123)`);
+  } else {
+    console.log("Usuario administrador ya existía, no se modificó.");
+  }
+
   // Fila única de configuración global (OpenAI key, benchmarks, etc.)
   const existingSettings = await prisma.appSettings.findFirst();
   if (!existingSettings) {
