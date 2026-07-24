@@ -38,7 +38,19 @@ export function Topbar({ title, alertCount = 0 }: { title: string; alertCount?: 
             message: `${first.brandSlug}: ${first.error}${allErrors.length > 1 ? ` (+${allErrors.length - 1} más)` : ""}`,
           });
         } else {
-          setResult({ ok: true, message: "Datos actualizados" });
+          type MetaOutcome = { brandSlug: string; campaignsSynced?: number; snapshotsInserted?: number };
+          const metaSummary = (data.meta ?? []) as MetaOutcome[];
+          const totalCampaigns = metaSummary.reduce((a, r) => a + (r.campaignsSynced ?? 0), 0);
+          const totalSnapshots = metaSummary.reduce((a, r) => a + (r.snapshotsInserted ?? 0), 0);
+
+          if (metaSummary.length > 0 && totalCampaigns === 0 && totalSnapshots === 0) {
+            setResult({
+              ok: false,
+              message: "Meta no devolvió campañas ni datos para el período. Revisa que la cuenta tenga campañas activas con inversión reciente.",
+            });
+          } else {
+            setResult({ ok: true, message: `Datos actualizados: ${totalCampaigns} campañas, ${totalSnapshots} registros nuevos` });
+          }
         }
         // Refresca todos los datos ya cargados en pantalla con lo recién sincronizado
         queryClient.invalidateQueries();
