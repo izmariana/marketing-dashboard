@@ -35,6 +35,15 @@ function BrandCredentialCard({ brandSlug, brandName, brandColor }: { brandSlug: 
   const [showToken, setShowToken] = useState(false);
   const [saved, setSaved] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{
+    ok: boolean;
+    error?: string;
+    accountName?: string;
+    accountStatus?: number;
+    currency?: string;
+    totalCampaigns?: number;
+  } | null>(null);
   const {
     register,
     handleSubmit,
@@ -58,6 +67,20 @@ function BrandCredentialCard({ brandSlug, brandName, brandColor }: { brandSlug: 
       setTimeout(() => setSaved(false), 2500);
     } catch {
       setServerError("No se pudo conectar con el servidor. Intenta de nuevo.");
+    }
+  }
+
+  async function handleTestConnection() {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const res = await fetch(`/api/settings/meta-credentials/test?brand=${brandSlug}`);
+      const data = await res.json();
+      setTestResult(data);
+    } catch {
+      setTestResult({ ok: false, error: "No se pudo conectar con el servidor." });
+    } finally {
+      setTesting(false);
     }
   }
 
@@ -140,6 +163,35 @@ function BrandCredentialCard({ brandSlug, brandName, brandColor }: { brandSlug: 
             "Guardar credenciales"
           )}
         </button>
+
+        <button
+          type="button"
+          onClick={handleTestConnection}
+          disabled={testing}
+          className="w-full rounded-md text-sm font-medium py-2 border border-border hover:bg-surface-2 transition-colors disabled:opacity-50"
+        >
+          {testing ? "Probando conexión..." : "Probar conexión guardada"}
+        </button>
+
+        {testResult && (
+          <div className={cn("rounded-md border p-3 text-xs", testResult.ok ? "border-success/30 bg-success/5" : "border-danger/30 bg-danger/5")}>
+            {testResult.ok ? (
+              <div className="space-y-1 text-foreground/90">
+                <p className="font-medium text-success">✓ Conexión exitosa</p>
+                <p>Cuenta: <strong>{testResult.accountName}</strong> ({testResult.currency})</p>
+                <p>Estado de la cuenta: {testResult.accountStatus === 1 ? "Activa" : `código ${testResult.accountStatus}`}</p>
+                <p>Campañas encontradas en el catálogo: <strong>{testResult.totalCampaigns}</strong></p>
+                {testResult.totalCampaigns === 0 && (
+                  <p className="text-warning mt-1">
+                    ⚠️ La conexión funciona, pero esta cuenta publicitaria no tiene ninguna campaña. Verifica que el Ad Account ID guardado sea el correcto para {brandName}.
+                  </p>
+                )}
+              </div>
+            ) : (
+              <p className="text-danger">✗ {testResult.error}</p>
+            )}
+          </div>
+        )}
       </form>
     </Panel>
   );

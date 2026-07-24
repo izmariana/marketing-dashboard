@@ -201,4 +201,38 @@ export async function fetchInstagramMediaInsights(
   );
 }
 
+/**
+ * Verifica las credenciales consultando datos básicos de la cuenta
+ * publicitaria (nombre, estado, moneda) y cuenta cuántas campañas existen
+ * en total — sirve para diagnosticar exactamente qué ve Meta con este
+ * token y este Ad Account ID, sin depender de fechas ni permisos extra.
+ */
+export async function testMetaConnection(creds: MetaCredentials): Promise<{
+  ok: boolean;
+  error?: string;
+  accountName?: string;
+  accountStatus?: number;
+  currency?: string;
+  totalCampaigns?: number;
+}> {
+  try {
+    const account = await metaFetch<{ name: string; account_status: number; currency: string }>(
+      `/${creds.adAccountId}`,
+      { access_token: creds.accessToken, fields: "name,account_status,currency" }
+    );
+
+    const campaignsResp = await fetchCampaigns(creds);
+
+    return {
+      ok: true,
+      accountName: account.name,
+      accountStatus: account.account_status,
+      currency: account.currency,
+      totalCampaigns: campaignsResp.data.length,
+    };
+  } catch (err) {
+    return { ok: false, error: err instanceof MetaApiError ? err.message : err instanceof Error ? err.message : "Error desconocido" };
+  }
+}
+
 export { MetaApiError };
