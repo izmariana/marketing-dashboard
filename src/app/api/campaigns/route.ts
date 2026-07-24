@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
     orderBy: { startDate: "desc" },
   });
 
-  type CampaignWithSnapshots = Awaited<ReturnType<typeof prisma.campaign.findMany>>[number];
+  type CampaignWithSnapshots = (typeof campaigns)[number];
 
   const shaped = campaigns.map((c: CampaignWithSnapshots) => {
     const snaps = c.metricSnapshots;

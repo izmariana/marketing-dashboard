@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
     include: { brand: true },
   });
 
-  type CampaignRow = Awaited<ReturnType<typeof prisma.campaign.findMany>>[number];
+  type CampaignRow = (typeof campaigns)[number];
   const events = campaigns.map((c: CampaignRow) => ({
     name: c.name,
     status: c.status,
