@@ -39,17 +39,22 @@ export function Topbar({ title, alertCount = 0 }: { title: string; alertCount?: 
           });
         } else {
           type MetaOutcome = { brandSlug: string; campaignsSynced?: number; snapshotsInserted?: number };
+          type GaOutcome = { brandSlug: string; snapshotsInserted?: number };
           const metaSummary = (data.meta ?? []) as MetaOutcome[];
+          const gaSummary = (data.googleAnalytics ?? []) as GaOutcome[];
           const totalCampaigns = metaSummary.reduce((a, r) => a + (r.campaignsSynced ?? 0), 0);
           const totalSnapshots = metaSummary.reduce((a, r) => a + (r.snapshotsInserted ?? 0), 0);
+          const totalGaSnapshots = gaSummary.reduce((a, r) => a + (r.snapshotsInserted ?? 0), 0);
 
-          if (metaSummary.length > 0 && totalCampaigns === 0 && totalSnapshots === 0) {
+          if (metaSummary.length > 0 && totalCampaigns === 0 && totalSnapshots === 0 && gaSummary.length === 0) {
             setResult({
               ok: false,
               message: "Meta no devolvió campañas ni datos para el período. Revisa que la cuenta tenga campañas activas con inversión reciente.",
             });
           } else {
-            setResult({ ok: true, message: `Datos actualizados: ${totalCampaigns} campañas, ${totalSnapshots} registros nuevos` });
+            const parts = [`${totalCampaigns} campañas`, `${totalSnapshots} registros Meta`];
+            if (gaSummary.length > 0) parts.push(`${totalGaSnapshots} registros GA`);
+            setResult({ ok: true, message: `Datos actualizados: ${parts.join(", ")}` });
           }
         }
         // Refresca todos los datos ya cargados en pantalla con lo recién sincronizado
