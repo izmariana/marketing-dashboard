@@ -202,6 +202,28 @@ export async function fetchInstagramMediaInsights(
 }
 
 /**
+ * Trae el conteo actual de seguidores/fans de la página de Facebook y de
+ * la cuenta de Instagram Business — Meta no expone un histórico propio de
+ * seguidores día a día, así que este valor se guarda como un snapshot
+ * nuevo cada vez que se sincroniza (nunca se sobrescribe el pasado).
+ */
+export async function fetchFollowerCounts(creds: MetaCredentials): Promise<{ facebookFollowers: number | null; instagramFollowers: number | null }> {
+  const [fb, ig] = await Promise.all([
+    creds.facebookPageId
+      ? metaFetch<{ fan_count?: number }>(`/${creds.facebookPageId}`, { access_token: creds.accessToken, fields: "fan_count" }).catch(() => null)
+      : Promise.resolve(null),
+    creds.instagramBusinessId
+      ? metaFetch<{ followers_count?: number }>(`/${creds.instagramBusinessId}`, { access_token: creds.accessToken, fields: "followers_count" }).catch(() => null)
+      : Promise.resolve(null),
+  ]);
+
+  return {
+    facebookFollowers: fb?.fan_count ?? null,
+    instagramFollowers: ig?.followers_count ?? null,
+  };
+}
+
+/**
  * Verifica las credenciales consultando datos básicos de la cuenta
  * publicitaria (nombre, estado, moneda) y cuenta cuántas campañas existen
  * en total — sirve para diagnosticar exactamente qué ve Meta con este

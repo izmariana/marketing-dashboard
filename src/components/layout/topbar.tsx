@@ -28,8 +28,9 @@ export function Topbar({ title, alertCount = 0 }: { title: string; alertCount?: 
       } else {
         type SyncOutcome = { brandSlug: string; error?: string };
         const metaErrors = ((data.meta ?? []) as SyncOutcome[]).filter((r) => r.error);
+        const metaContentErrors = ((data.metaContent ?? []) as SyncOutcome[]).filter((r) => r.error);
         const gaErrors = ((data.googleAnalytics ?? []) as SyncOutcome[]).filter((r) => r.error);
-        const allErrors = [...metaErrors, ...gaErrors];
+        const allErrors = [...metaErrors, ...metaContentErrors, ...gaErrors];
 
         if (allErrors.length > 0) {
           const first = allErrors[0];
@@ -39,20 +40,24 @@ export function Topbar({ title, alertCount = 0 }: { title: string; alertCount?: 
           });
         } else {
           type MetaOutcome = { brandSlug: string; campaignsSynced?: number; snapshotsInserted?: number };
+          type MetaContentOutcome = { brandSlug: string; postsSynced?: number; followerSnapshotsSynced?: number };
           type GaOutcome = { brandSlug: string; snapshotsInserted?: number };
           const metaSummary = (data.meta ?? []) as MetaOutcome[];
+          const metaContentSummary = (data.metaContent ?? []) as MetaContentOutcome[];
           const gaSummary = (data.googleAnalytics ?? []) as GaOutcome[];
           const totalCampaigns = metaSummary.reduce((a, r) => a + (r.campaignsSynced ?? 0), 0);
           const totalSnapshots = metaSummary.reduce((a, r) => a + (r.snapshotsInserted ?? 0), 0);
+          const totalPosts = metaContentSummary.reduce((a, r) => a + (r.postsSynced ?? 0), 0);
           const totalGaSnapshots = gaSummary.reduce((a, r) => a + (r.snapshotsInserted ?? 0), 0);
 
-          if (metaSummary.length > 0 && totalCampaigns === 0 && totalSnapshots === 0 && gaSummary.length === 0) {
+          if (metaSummary.length > 0 && totalCampaigns === 0 && totalSnapshots === 0 && gaSummary.length === 0 && metaContentSummary.length === 0) {
             setResult({
               ok: false,
               message: "Meta no devolvió campañas ni datos para el período. Revisa que la cuenta tenga campañas activas con inversión reciente.",
             });
           } else {
             const parts = [`${totalCampaigns} campañas`, `${totalSnapshots} registros Meta`];
+            if (metaContentSummary.length > 0) parts.push(`${totalPosts} publicaciones`);
             if (gaSummary.length > 0) parts.push(`${totalGaSnapshots} registros GA`);
             setResult({ ok: true, message: `Datos actualizados: ${parts.join(", ")}` });
           }

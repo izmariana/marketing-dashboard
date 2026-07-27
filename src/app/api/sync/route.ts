@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth/auth";
 import { isDatabaseConfigured } from "@/lib/db/prisma";
 import { syncAllBrands, syncBrand } from "@/lib/services/sync-service";
 import { syncAllGaBrands, syncGaBrand } from "@/lib/services/ga-sync-service";
+import { syncAllMetaContent, syncMetaContent } from "@/lib/services/meta-content-sync";
 import { generateAlertsForAllBrands } from "@/lib/services/alert-service";
 
 // Traer datos de Meta + Google Analytics de varias marcas puede tardar más
@@ -11,7 +12,7 @@ import { generateAlertsForAllBrands } from "@/lib/services/alert-service";
 export const maxDuration = 60;
 
 /**
- * POST /api/sync            → sincroniza Meta y Google Analytics de todas las marcas
+ * POST /api/sync            → sincroniza Meta Ads, contenido orgánico de Meta y Google Analytics de todas las marcas
  * POST /api/sync?brandId=xx → sincroniza solo una marca
  *
  * También se invoca automáticamente por Vercel Cron cada 6 horas
@@ -22,15 +23,17 @@ async function runSync(brandId?: string) {
     return { synced: false, reason: "USE_MOCK_DATA está activo o falta DATABASE_URL. Nada que sincronizar todavía." };
   }
 
-  // Meta y Google Analytics se sincronizan en paralelo (no uno después del
-  // otro) para reducir el tiempo total y evitar que la función se corte.
-  const [metaResults, gaResults] = await Promise.all([
+  // Meta Ads, contenido orgánico de Meta y Google Analytics se sincronizan
+  // en paralelo (no uno después del otro) para reducir el tiempo total y
+  // evitar que la función se corte.
+  const [metaResults, metaContentResults, gaResults] = await Promise.all([
     brandId ? [await syncBrand(brandId)] : syncAllBrands(),
+    brandId ? [await syncMetaContent(brandId)] : syncAllMetaContent(),
     brandId ? [await syncGaBrand(brandId)] : syncAllGaBrands(),
   ]);
   const alertsCreated = await generateAlertsForAllBrands();
 
-  return { synced: true, meta: metaResults, googleAnalytics: gaResults, alertsCreated };
+  return { synced: true, meta: metaResults, metaContent: metaContentResults, googleAnalytics: gaResults, alertsCreated };
 }
 
 export async function POST(req: NextRequest) {
