@@ -200,6 +200,17 @@ function BrandCredentialCard({ brandSlug, brandName, brandColor }: { brandSlug: 
 function GaCredentialCard({ brandSlug, brandName, brandColor }: { brandSlug: string; brandName: string; brandColor: string }) {
   const [saved, setSaved] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{
+    ok: boolean;
+    error?: string;
+    accountName?: string;
+    accountStatus?: number;
+    currency?: string;
+    lastSyncedAt?: string | null;
+    syncStatus?: string | null;
+    syncError?: string | null;
+  } | null>(null);
   const {
     register,
     handleSubmit,
@@ -223,6 +234,20 @@ function GaCredentialCard({ brandSlug, brandName, brandColor }: { brandSlug: str
       setTimeout(() => setSaved(false), 2500);
     } catch {
       setServerError("No se pudo conectar con el servidor. Intenta de nuevo.");
+    }
+  }
+
+  async function handleTestConnection() {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const res = await fetch(`/api/settings/ga-credentials/test?brand=${brandSlug}`);
+      const data = await res.json();
+      setTestResult(data);
+    } catch {
+      setTestResult({ ok: false, error: "No se pudo conectar con el servidor." });
+    } finally {
+      setTesting(false);
     }
   }
 
@@ -275,6 +300,30 @@ function GaCredentialCard({ brandSlug, brandName, brandColor }: { brandSlug: str
             "Guardar y probar conexión"
           )}
         </button>
+
+        <button
+          type="button"
+          onClick={handleTestConnection}
+          disabled={testing}
+          className="w-full rounded-md text-sm font-medium py-2 border border-border hover:bg-surface-2 transition-colors disabled:opacity-50"
+        >
+          {testing ? "Probando conexión..." : "Probar conexión guardada"}
+        </button>
+
+        {testResult && (
+          <div className={cn("rounded-md border p-3 text-xs", testResult.ok ? "border-success/30 bg-success/5" : "border-danger/30 bg-danger/5")}>
+            {testResult.ok ? (
+              <div className="space-y-1 text-foreground/90">
+                <p className="font-medium text-success">✓ Conexión exitosa</p>
+                <p>Última sincronización: {testResult.lastSyncedAt ? new Date(testResult.lastSyncedAt).toLocaleString("es-CL") : "nunca"}</p>
+                <p>Estado de sincronización: {testResult.syncStatus ?? "idle"}</p>
+                {testResult.syncError && <p className="text-danger">Último error de sync: {testResult.syncError}</p>}
+              </div>
+            ) : (
+              <p className="text-danger">✗ {testResult.error}</p>
+            )}
+          </div>
+        )}
       </form>
     </Panel>
   );
