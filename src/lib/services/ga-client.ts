@@ -151,7 +151,7 @@ export async function fetchLandingPages(creds: GaCredentials, since: string, unt
       { name: "engagementRate" },
       { name: "conversions" },
       { name: "averageSessionDuration" },
-      { name: "exitRate" },
+      { name: "bounceRate" },
     ],
     limit: 100,
   });
@@ -165,7 +165,7 @@ export async function fetchLandingPages(creds: GaCredentials, since: string, unt
     engagementRate: Number(row.metricValues?.[2]?.value ?? 0) * 100,
     conversions: Number(row.metricValues?.[3]?.value ?? 0),
     avgEngagementSec: Number(row.metricValues?.[4]?.value ?? 0),
-    exitRate: Number(row.metricValues?.[5]?.value ?? 0) * 100,
+    exitRate: Number(row.metricValues?.[5]?.value ?? 0) * 100, // GA4 no tiene "exitRate"; se usa bounceRate como la métrica equivalente más cercana
   }));
 }
 
