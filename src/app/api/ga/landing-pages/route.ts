@@ -14,10 +14,13 @@ export async function GET(req: NextRequest) {
   }
 
   const prisma = await getPrisma();
+  const dbBrand = await prisma.brand.findUnique({ where: { slug: brand.slug as never } });
+  if (!dbBrand) return NextResponse.json({ error: "La marca todavía no existe en la base de datos." }, { status: 404 });
+
   const since = new Date();
   since.setDate(since.getDate() - 30);
 
-  const rows = await prisma.gaLandingPage.findMany({ where: { brandId: brand.id, date: { gte: since } } });
+  const rows = await prisma.gaLandingPage.findMany({ where: { brandId: dbBrand.id, date: { gte: since } } });
 
   type Row = (typeof rows)[number];
   const grouped = new Map<string, { path: string; title: string; users: number; sessions: number; engagementRate: number; conversions: number; avgEngagementSec: number; exitRate: number; count: number }>();

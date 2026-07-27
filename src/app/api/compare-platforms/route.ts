@@ -21,12 +21,15 @@ export async function GET(req: NextRequest) {
     ga = aggregateGaMetrics(generateGaDailyMetrics(brand.slug as BrandSlug, days));
   } else {
     const prisma = await getPrisma();
+    const dbBrand = await prisma.brand.findUnique({ where: { slug: brand.slug as never } });
+    if (!dbBrand) return NextResponse.json({ error: "La marca todavía no existe en la base de datos." }, { status: 404 });
+
     const since = new Date();
     since.setDate(since.getDate() - days);
 
     const [metaSnaps, gaSnaps] = await Promise.all([
-      prisma.metricSnapshot.findMany({ where: { brandId: brand.id, grain: "DAILY", date: { gte: since } } }),
-      prisma.gaMetricSnapshot.findMany({ where: { brandId: brand.id, grain: "DAILY", date: { gte: since } } }),
+      prisma.metricSnapshot.findMany({ where: { brandId: dbBrand.id, grain: "DAILY", date: { gte: since } } }),
+      prisma.gaMetricSnapshot.findMany({ where: { brandId: dbBrand.id, grain: "DAILY", date: { gte: since } } }),
     ]);
 
     type MetaSnap = (typeof metaSnaps)[number];

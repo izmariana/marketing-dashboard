@@ -30,14 +30,17 @@ export async function GET(req: NextRequest) {
     previous = aggregateGaMetrics(generateGaDailyMetrics(brand.slug as BrandSlug, days, previousEnd));
   } else {
     const prisma = await getPrisma();
+    const dbBrand = await prisma.brand.findUnique({ where: { slug: brand.slug as never } });
+    if (!dbBrand) return NextResponse.json({ error: "La marca todavía no existe en la base de datos." }, { status: 404 });
+
     const since = new Date();
     since.setDate(since.getDate() - days);
     const prevSince = new Date();
     prevSince.setDate(prevSince.getDate() - days * 2);
 
     const [currentSnaps, previousSnaps] = await Promise.all([
-      prisma.gaMetricSnapshot.findMany({ where: { brandId: brand.id, grain: "DAILY", date: { gte: since } }, orderBy: { date: "asc" } }),
-      prisma.gaMetricSnapshot.findMany({ where: { brandId: brand.id, grain: "DAILY", date: { gte: prevSince, lt: since } } }),
+      prisma.gaMetricSnapshot.findMany({ where: { brandId: dbBrand.id, grain: "DAILY", date: { gte: since } }, orderBy: { date: "asc" } }),
+      prisma.gaMetricSnapshot.findMany({ where: { brandId: dbBrand.id, grain: "DAILY", date: { gte: prevSince, lt: since } } }),
     ]);
 
     type SnapRow = (typeof currentSnaps)[number];

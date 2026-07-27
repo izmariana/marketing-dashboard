@@ -24,11 +24,14 @@ export async function GET(req: NextRequest) {
   }
 
   const prisma = await getPrisma();
+  const dbBrand = await prisma.brand.findUnique({ where: { slug: brand.slug as never } });
+  if (!dbBrand) return NextResponse.json({ error: "La marca todavía no existe en la base de datos." }, { status: 404 });
+
   const since = new Date();
   since.setDate(since.getDate() - days);
 
   const rows = await prisma.followerSnapshot.findMany({
-    where: { brandId: brand.id, network: network as never, date: { gte: since } },
+    where: { brandId: dbBrand.id, network: network as never, date: { gte: since } },
     orderBy: { date: "asc" },
   });
 
