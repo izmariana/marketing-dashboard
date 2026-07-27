@@ -11,9 +11,6 @@ import {
   FileBarChart,
   Settings,
   BarChart3,
-  LineChart,
-  Layers,
-  Music2,
   Briefcase,
   GitCompareArrows,
   Bell,
@@ -35,7 +32,6 @@ interface NavGroup {
 type NavItem = NavLeaf | NavGroup;
 
 const NAV: NavItem[] = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   {
     label: "Marcas",
     icon: Building2,
@@ -46,9 +42,6 @@ const NAV: NavItem[] = [
     ],
   },
   { href: "/campanas", label: "Campañas", icon: Megaphone },
-  { href: "/google-analytics", label: "Google Analytics", icon: LineChart },
-  { href: "/meta", label: "Meta", icon: Layers },
-  { href: "/tiktok", label: "TikTok", icon: Music2 },
   { href: "/linkedin", label: "LinkedIn", icon: Briefcase, disabled: true },
   { href: "/comparacion", label: "Comparación", icon: GitCompareArrows },
   { href: "/alertas", label: "Alertas", icon: Bell },

@@ -1,5 +1,5 @@
-import { BrandDashboard } from "@/components/dashboard/brand-dashboard";
+import { BrandPageTabs } from "@/components/dashboard/brand-page-tabs";
 
 export default function Page() {
-  return <BrandDashboard slug="informes_comerciales" />;
+  return <BrandPageTabs slug="informes_comerciales" />;
 }

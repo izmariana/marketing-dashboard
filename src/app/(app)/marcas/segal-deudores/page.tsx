@@ -1,5 +1,5 @@
-import { BrandDashboard } from "@/components/dashboard/brand-dashboard";
+import { BrandPageTabs } from "@/components/dashboard/brand-page-tabs";
 
 export default function Page() {
-  return <BrandDashboard slug="segal_deudores" />;
+  return <BrandPageTabs slug="segal_deudores" />;
 }

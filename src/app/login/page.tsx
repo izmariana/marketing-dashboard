@@ -27,7 +27,7 @@ export default function LoginPage() {
       setError("Correo o contraseña incorrectos.");
       return;
     }
-    router.push("/dashboard");
+    router.push("/marcas/informes-comerciales");
     router.refresh();
   }
 
