@@ -95,7 +95,14 @@ export async function syncMetaContent(brandId: string): Promise<MetaContentSyncR
         const engagedUsers = extractFbInsight(p, "post_engaged_users");
         const clicks = extractFbInsight(p, "post_clicks");
         const likes = extractFbInsight(p, "post_reactions_by_type_total");
-        return { post: p, reach, engagement: engagedUsers, clicks, likes };
+        // Curva de retención — solo llega poblada si el post es un video.
+        const videoLength = extractFbInsight(p, "post_video_length") || null;
+        const avgWatch = extractFbInsight(p, "post_video_avg_time_watched") || null;
+        const p25 = extractFbInsight(p, "post_video_p25_watched_actions") || null;
+        const p50 = extractFbInsight(p, "post_video_p50_watched_actions") || null;
+        const p75 = extractFbInsight(p, "post_video_p75_watched_actions") || null;
+        const p95 = extractFbInsight(p, "post_video_p95_watched_actions") || null;
+        return { post: p, reach, engagement: engagedUsers, clicks, likes, videoLength, avgWatch, p25, p50, p75, p95 };
       });
       const maxEngagement = Math.max(1, ...shaped.map((s) => s.engagement));
       const maxCtr = Math.max(0.01, ...shaped.map((s) => (s.reach > 0 ? (s.clicks / s.reach) * 100 : 0)));
@@ -103,6 +110,15 @@ export async function syncMetaContent(brandId: string): Promise<MetaContentSyncR
 
       for (const s of shaped) {
         const ctr = s.reach > 0 ? (s.clicks / s.reach) * 100 : 0;
+        // p25 es la base (~100% de quienes empezaron a ver) — los demás
+        // percentiles se expresan como % relativo a esa base, ya que Meta
+        // entrega conteos absolutos, no porcentajes directos.
+        const retentionP25 = s.p25 ? 100 : null;
+        const retentionP50 = s.p25 && s.p50 ? Math.round((s.p50 / s.p25) * 100) : null;
+        const retentionP75 = s.p25 && s.p75 ? Math.round((s.p75 / s.p25) * 100) : null;
+        const retentionP95 = s.p25 && s.p95 ? Math.round((s.p95 / s.p25) * 100) : null;
+        const avgWatchPct = s.avgWatch && s.videoLength ? Math.round((s.avgWatch / s.videoLength) * 10000) / 100 : null;
+
         await prisma.post.upsert({
           where: { metaPostId: s.post.id },
           create: {
@@ -124,6 +140,12 @@ export async function syncMetaContent(brandId: string): Promise<MetaContentSyncR
             engagement: s.engagement,
             clicks: s.clicks,
             ctr,
+            videoDurationSec: s.videoLength ? Math.round(s.videoLength) : null,
+            avgWatchPct,
+            retentionP25,
+            retentionP50,
+            retentionP75,
+            retentionP95,
             performanceScore: computeScore(s.engagement, ctr, s.reach, maxEngagement, maxCtr, maxReach),
           },
           update: {
@@ -133,6 +155,12 @@ export async function syncMetaContent(brandId: string): Promise<MetaContentSyncR
             engagement: s.engagement,
             clicks: s.clicks,
             ctr,
+            videoDurationSec: s.videoLength ? Math.round(s.videoLength) : null,
+            avgWatchPct,
+            retentionP25,
+            retentionP50,
+            retentionP75,
+            retentionP95,
             performanceScore: computeScore(s.engagement, ctr, s.reach, maxEngagement, maxCtr, maxReach),
           },
         });

@@ -28,9 +28,21 @@ const gaCredentialSchema = z.object({
   serviceAccountJson: z.string().min(50, "Pega el JSON completo de la Service Account"),
 });
 
+const tiktokCredentialSchema = z.object({
+  accessToken: z.string().refine((v) => v === "" || v.length >= 20, "El token de acceso parece inválido"),
+  openId: z.string().min(1, "Requerido"),
+});
+
+const linkedinCredentialSchema = z.object({
+  accessToken: z.string().refine((v) => v === "" || v.length >= 20, "El token de acceso parece inválido"),
+  organizationUrn: z.string().regex(/^urn:li:organization:\d+$/, "Debe tener el formato urn:li:organization:XXXXXXXX"),
+});
+
 type BrandCredentialForm = z.infer<typeof brandCredentialSchema>;
 type SettingsForm = z.infer<typeof settingsSchema>;
 type GaCredentialForm = z.infer<typeof gaCredentialSchema>;
+type TikTokCredentialForm = z.infer<typeof tiktokCredentialSchema>;
+type LinkedinCredentialForm = z.infer<typeof linkedinCredentialSchema>;
 
 function BrandCredentialCard({ brandSlug, brandName, brandColor }: { brandSlug: string; brandName: string; brandColor: string }) {
   const [showToken, setShowToken] = useState(false);
@@ -400,6 +412,333 @@ function GaCredentialCard({ brandSlug, brandName, brandColor }: { brandSlug: str
   );
 }
 
+function TikTokCredentialCard({ brandSlug, brandName, brandColor }: { brandSlug: string; brandName: string; brandColor: string }) {
+  const [showToken, setShowToken] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [serverError, setServerError] = useState<string | null>(null);
+  const [testing, setTesting] = useState(false);
+  const [hasAccessToken, setHasAccessToken] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const [testResult, setTestResult] = useState<{
+    ok: boolean;
+    error?: string;
+    displayName?: string;
+    followerCount?: number;
+    videoCount?: number;
+  } | null>(null);
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors, isSubmitting },
+  } = useForm<TikTokCredentialForm>({
+    resolver: zodResolver(tiktokCredentialSchema),
+    defaultValues: { accessToken: "", openId: "" },
+  });
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/settings/tiktok-credentials")
+      .then((res) => res.json())
+      .then((data: { statuses?: Array<{ brandSlug: string; hasAccessToken: boolean; openId: string | null }> }) => {
+        if (cancelled) return;
+        const mine = data.statuses?.find((s) => s.brandSlug === brandSlug);
+        if (mine) {
+          setHasAccessToken(mine.hasAccessToken);
+          reset({ accessToken: "", openId: mine.openId ?? "" });
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setLoaded(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [brandSlug, reset]);
+
+  async function onSubmit(values: TikTokCredentialForm) {
+    setServerError(null);
+    if (!hasAccessToken && !values.accessToken) {
+      setServerError("Falta el Access Token de TikTok — es obligatorio la primera vez que conectas esta marca.");
+      return;
+    }
+    try {
+      const res = await fetch("/api/settings/tiktok-credentials", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ brandSlug, ...values, accessToken: values.accessToken || undefined }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setServerError(data.error ?? "No se pudo guardar. Intenta de nuevo.");
+        return;
+      }
+      setHasAccessToken(true);
+      reset({ ...values, accessToken: "" });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch {
+      setServerError("No se pudo conectar con el servidor. Intenta de nuevo.");
+    }
+  }
+
+  async function handleTestConnection() {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const res = await fetch(`/api/settings/tiktok-credentials/test?brand=${brandSlug}`);
+      const data = await res.json();
+      setTestResult(data);
+    } catch {
+      setTestResult({ ok: false, error: "No se pudo conectar con el servidor." });
+    } finally {
+      setTesting(false);
+    }
+  }
+
+  return (
+    <Panel>
+      <div className="flex items-center gap-2 mb-4">
+        <span className="h-2.5 w-2.5 rounded-full" style={{ background: brandColor }} />
+        <h3 className="text-sm font-medium">{brandName}</h3>
+      </div>
+
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-3">
+        <div>
+          <label className="block text-xs font-medium text-muted mb-1">TikTok Access Token</label>
+          <div className="relative">
+            <input
+              type={showToken ? "text" : "password"}
+              {...register("accessToken")}
+              placeholder={loaded && hasAccessToken ? "•••••••• (ya guardado — deja vacío para no cambiarlo)" : "act.xxxxxxxxxxxxxxxxxxxxxxxx"}
+              className="w-full rounded-md border border-border bg-surface-2 px-3 py-2 pr-9 text-sm outline-none focus:border-accent"
+            />
+            <button type="button" onClick={() => setShowToken((s) => !s)} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted">
+              {showToken ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+            </button>
+          </div>
+          {errors.accessToken && <p className="text-xs text-danger mt-1">{errors.accessToken.message}</p>}
+        </div>
+
+        <div>
+          <label className="block text-xs font-medium text-muted mb-1">Open ID de la cuenta de negocio</label>
+          <input
+            {...register("openId")}
+            placeholder="-000xxxxxxxxxxxxxxxx"
+            className="w-full rounded-md border border-border bg-surface-2 px-3 py-2 text-sm outline-none focus:border-accent"
+          />
+          {errors.openId && <p className="text-xs text-danger mt-1">{errors.openId.message}</p>}
+        </div>
+
+        {serverError && <p className="text-xs text-danger">{serverError}</p>}
+
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className={cn(
+            "w-full rounded-md text-sm font-medium py-2 transition-colors",
+            saved ? "bg-success text-white" : "bg-accent text-accent-foreground hover:opacity-90"
+          )}
+        >
+          {saved ? (
+            <span className="flex items-center justify-center gap-1.5">
+              <CheckCircle2 className="h-4 w-4" /> Guardado
+            </span>
+          ) : isSubmitting ? (
+            "Guardando..."
+          ) : (
+            "Guardar credenciales"
+          )}
+        </button>
+
+        <button
+          type="button"
+          onClick={handleTestConnection}
+          disabled={testing}
+          className="w-full rounded-md text-sm font-medium py-2 border border-border hover:bg-surface-2 transition-colors disabled:opacity-50"
+        >
+          {testing ? "Probando conexión..." : "Probar conexión guardada"}
+        </button>
+
+        {testResult && (
+          <div className={cn("rounded-md border p-3 text-xs", testResult.ok ? "border-success/30 bg-success/5" : "border-danger/30 bg-danger/5")}>
+            {testResult.ok ? (
+              <div className="space-y-1 text-foreground/90">
+                <p className="font-medium text-success">✓ Conexión exitosa</p>
+                <p>Cuenta: <strong>{testResult.displayName}</strong></p>
+                <p>Seguidores: <strong>{testResult.followerCount}</strong></p>
+              </div>
+            ) : (
+              <p className="text-danger">✗ {testResult.error}</p>
+            )}
+          </div>
+        )}
+      </form>
+    </Panel>
+  );
+}
+
+function LinkedinCredentialCard({ brandSlug, brandName, brandColor }: { brandSlug: string; brandName: string; brandColor: string }) {
+  const [showToken, setShowToken] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [serverError, setServerError] = useState<string | null>(null);
+  const [testing, setTesting] = useState(false);
+  const [hasAccessToken, setHasAccessToken] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; error?: string; followerCount?: number } | null>(null);
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors, isSubmitting },
+  } = useForm<LinkedinCredentialForm>({
+    resolver: zodResolver(linkedinCredentialSchema),
+    defaultValues: { accessToken: "", organizationUrn: "" },
+  });
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/settings/linkedin-credentials")
+      .then((res) => res.json())
+      .then((data: { statuses?: Array<{ brandSlug: string; hasAccessToken: boolean; organizationUrn: string | null }> }) => {
+        if (cancelled) return;
+        const mine = data.statuses?.find((s) => s.brandSlug === brandSlug);
+        if (mine) {
+          setHasAccessToken(mine.hasAccessToken);
+          reset({ accessToken: "", organizationUrn: mine.organizationUrn ?? "" });
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setLoaded(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [brandSlug, reset]);
+
+  async function onSubmit(values: LinkedinCredentialForm) {
+    setServerError(null);
+    if (!hasAccessToken && !values.accessToken) {
+      setServerError("Falta el Access Token de LinkedIn — es obligatorio la primera vez que conectas esta marca.");
+      return;
+    }
+    try {
+      const res = await fetch("/api/settings/linkedin-credentials", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ brandSlug, ...values, accessToken: values.accessToken || undefined }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setServerError(data.error ?? "No se pudo guardar. Intenta de nuevo.");
+        return;
+      }
+      setHasAccessToken(true);
+      reset({ ...values, accessToken: "" });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch {
+      setServerError("No se pudo conectar con el servidor. Intenta de nuevo.");
+    }
+  }
+
+  async function handleTestConnection() {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const res = await fetch(`/api/settings/linkedin-credentials/test?brand=${brandSlug}`);
+      const data = await res.json();
+      setTestResult(data);
+    } catch {
+      setTestResult({ ok: false, error: "No se pudo conectar con el servidor." });
+    } finally {
+      setTesting(false);
+    }
+  }
+
+  return (
+    <Panel>
+      <div className="flex items-center gap-2 mb-4">
+        <span className="h-2.5 w-2.5 rounded-full" style={{ background: brandColor }} />
+        <h3 className="text-sm font-medium">{brandName}</h3>
+      </div>
+
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-3">
+        <div>
+          <label className="block text-xs font-medium text-muted mb-1">LinkedIn Access Token</label>
+          <div className="relative">
+            <input
+              type={showToken ? "text" : "password"}
+              {...register("accessToken")}
+              placeholder={loaded && hasAccessToken ? "•••••••• (ya guardado — deja vacío para no cambiarlo)" : "AQXxxxxxxxxxxxxxxxxxxxxxxxx"}
+              className="w-full rounded-md border border-border bg-surface-2 px-3 py-2 pr-9 text-sm outline-none focus:border-accent"
+            />
+            <button type="button" onClick={() => setShowToken((s) => !s)} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted">
+              {showToken ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+            </button>
+          </div>
+          {errors.accessToken && <p className="text-xs text-danger mt-1">{errors.accessToken.message}</p>}
+        </div>
+
+        <div>
+          <label className="block text-xs font-medium text-muted mb-1">Organization URN</label>
+          <input
+            {...register("organizationUrn")}
+            placeholder="urn:li:organization:12345678"
+            className="w-full rounded-md border border-border bg-surface-2 px-3 py-2 text-sm outline-none focus:border-accent"
+          />
+          {errors.organizationUrn && <p className="text-xs text-danger mt-1">{errors.organizationUrn.message}</p>}
+        </div>
+
+        {serverError && <p className="text-xs text-danger">{serverError}</p>}
+
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className={cn(
+            "w-full rounded-md text-sm font-medium py-2 transition-colors",
+            saved ? "bg-success text-white" : "bg-accent text-accent-foreground hover:opacity-90"
+          )}
+        >
+          {saved ? (
+            <span className="flex items-center justify-center gap-1.5">
+              <CheckCircle2 className="h-4 w-4" /> Guardado
+            </span>
+          ) : isSubmitting ? (
+            "Guardando..."
+          ) : (
+            "Guardar credenciales"
+          )}
+        </button>
+
+        <button
+          type="button"
+          onClick={handleTestConnection}
+          disabled={testing}
+          className="w-full rounded-md text-sm font-medium py-2 border border-border hover:bg-surface-2 transition-colors disabled:opacity-50"
+        >
+          {testing ? "Probando conexión..." : "Probar conexión guardada"}
+        </button>
+
+        {testResult && (
+          <div className={cn("rounded-md border p-3 text-xs", testResult.ok ? "border-success/30 bg-success/5" : "border-danger/30 bg-danger/5")}>
+            {testResult.ok ? (
+              <div className="space-y-1 text-foreground/90">
+                <p className="font-medium text-success">✓ Conexión exitosa</p>
+                <p>Seguidores: <strong>{testResult.followerCount}</strong></p>
+              </div>
+            ) : (
+              <p className="text-danger">✗ {testResult.error}</p>
+            )}
+          </div>
+        )}
+      </form>
+    </Panel>
+  );
+}
+
 function OpenAiSettingsCard() {
   const [showKey, setShowKey] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -487,6 +826,30 @@ export default function ConfiguracionPage() {
         <OpenAiSettingsCard />
 
         <div>
+          <h3 className="text-base font-semibold tracking-tight mb-1">TikTok</h3>
+          <p className="text-sm text-muted mb-4">
+            Conecta la cuenta de TikTok Business de cada marca. Requiere una app aprobada en developers.tiktok.com con los scopes <code className="text-xs bg-surface-2 px-1 py-0.5 rounded">user.info.stats</code> y <code className="text-xs bg-surface-2 px-1 py-0.5 rounded">video.list</code>.
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {BRANDS.map((b) => (
+              <TikTokCredentialCard key={b.slug} brandSlug={b.slug} brandName={b.name} brandColor={b.themeColor} />
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <h3 className="text-base font-semibold tracking-tight mb-1">LinkedIn</h3>
+          <p className="text-sm text-muted mb-4">
+            Conecta la Página de empresa de LinkedIn de cada marca. Requiere que la app tenga aprobado el acceso al &ldquo;Community Management API&rdquo; en LinkedIn Developers — es una aprobación caso a caso, no autoservicio.
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {BRANDS.map((b) => (
+              <LinkedinCredentialCard key={b.slug} brandSlug={b.slug} brandName={b.name} brandColor={b.themeColor} />
+            ))}
+          </div>
+        </div>
+
+        <div>
           <h3 className="text-base font-semibold tracking-tight mb-1">Google Analytics 4</h3>
           <p className="text-sm text-muted mb-4">
             Conecta el Property de GA4 de cada marca usando una Service Account con acceso de lectura.
@@ -513,10 +876,28 @@ export default function ConfiguracionPage() {
           <ol className="text-sm text-foreground/90 space-y-2 list-decimal list-inside">
             <li>Crea una app en developers.facebook.com → My Apps → Create App → tipo &ldquo;Business&rdquo;.</li>
             <li>Agrega el producto &ldquo;Marketing API&rdquo; y &ldquo;Facebook Login for Business&rdquo;.</li>
-            <li>En Herramientas → Graph API Explorer, genera un User Token con permisos: ads_read, ads_management, pages_read_engagement, instagram_basic, instagram_manage_insights.</li>
+            <li>En Herramientas → Graph API Explorer, genera un User Token con permisos: ads_read, ads_management, pages_read_engagement, pages_read_user_content, instagram_basic, instagram_manage_insights.</li>
             <li>Convierte el token de corta duración en uno de larga duración (60 días) desde el mismo Explorer.</li>
             <li>Obtén tu Ad Account ID en Business Settings → Cuentas publicitarias (formato act_XXXXXXXXXX).</li>
             <li>Obtén el Facebook Page ID desde la configuración de tu página, y el Instagram Business ID vinculando la cuenta de Instagram a la página de Facebook.</li>
+          </ol>
+        </Panel>
+
+        <Panel title="Cómo obtener tus credenciales de TikTok">
+          <ol className="text-sm text-foreground/90 space-y-2 list-decimal list-inside">
+            <li>Crea una app en developers.tiktok.com → Manage apps → Create an app.</li>
+            <li>Agrega el producto &ldquo;Login Kit&rdquo; y solicita los scopes <code className="text-xs bg-surface-2 px-1 py-0.5 rounded">user.info.stats</code> y <code className="text-xs bg-surface-2 px-1 py-0.5 rounded">video.list</code> (TikTok revisa y aprueba cada scope).</li>
+            <li>Completa el flujo OAuth de la cuenta de TikTok Business de la marca para obtener un Access Token y su Open ID.</li>
+            <li>El Access Token de TikTok expira — revisa en la documentación el flujo de refresh token para renovarlo antes de que caduque.</li>
+          </ol>
+        </Panel>
+
+        <Panel title="Cómo obtener tus credenciales de LinkedIn">
+          <ol className="text-sm text-foreground/90 space-y-2 list-decimal list-inside">
+            <li>Crea una app en developer.linkedin.com/apps, asociada a la Página de empresa de la marca.</li>
+            <li>Solicita acceso al producto &ldquo;Community Management API&rdquo; (o Marketing Developer Platform) — LinkedIn revisa y aprueba caso a caso, puede tardar días.</li>
+            <li>Una vez aprobado, genera un Access Token con scopes <code className="text-xs bg-surface-2 px-1 py-0.5 rounded">r_organization_social</code> y <code className="text-xs bg-surface-2 px-1 py-0.5 rounded">r_organization_followers</code>.</li>
+            <li>El Organization URN lo encuentras en la URL del admin de tu Página de LinkedIn (formato urn:li:organization:XXXXXXXX).</li>
           </ol>
         </Panel>
       </div>

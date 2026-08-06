@@ -72,6 +72,13 @@ export async function GET(req: NextRequest) {
       leads: p.leads,
       cpl: p.cpl ? Number(p.cpl) : 0,
       performanceScore: p.performanceScore ?? 0,
+      mediaUrl: p.mediaUrl ?? null,
+      videoDurationSec: p.videoDurationSec ?? null,
+      avgWatchPct: p.avgWatchPct ? Number(p.avgWatchPct) : null,
+      retentionP25: p.retentionP25 ? Number(p.retentionP25) : null,
+      retentionP50: p.retentionP50 ? Number(p.retentionP50) : null,
+      retentionP75: p.retentionP75 ? Number(p.retentionP75) : null,
+      retentionP95: p.retentionP95 ? Number(p.retentionP95) : null,
     })) as unknown as Post[];
   }
 

@@ -423,6 +423,17 @@ model Post {
   cpl             Decimal?        @db.Decimal(10, 2)
 
   performanceScore Int?           // 0-100, calculado
+
+  // Curva de retención de video — dato real que entrega Meta, no generado
+  // por IA. avgWatchPct = video_avg_time_watched / duración. Los p25-p95
+  // son el % de espectadores que llegó a ese punto del video.
+  videoDurationSec  Int?
+  avgWatchPct       Decimal?       @db.Decimal(5, 2)
+  retentionP25      Decimal?       @db.Decimal(5, 2)
+  retentionP50      Decimal?       @db.Decimal(5, 2)
+  retentionP75      Decimal?       @db.Decimal(5, 2)
+  retentionP95      Decimal?       @db.Decimal(5, 2)
+
   aiInsight        AiInsight?
 
   createdAt       DateTime        @default(now())
@@ -448,6 +459,20 @@ model AiInsight {
   whatToImprove       String  @db.Text
   similarIdeas        String  @db.Text
   nextContentIdea     String  @db.Text
+
+  // Análisis creativo profundo (solo video, generado bajo demanda — no en
+  // cada sincronización, por costo). Null si nunca se pidió o el post no
+  // es video.
+  transcript          String? @db.Text  // guion real, transcrito con Whisper
+  hookAnalysis         String? @db.Text  // qué pasa en los primeros 3 seg
+  ganchoAnalysis       String? @db.Text  // qué mantiene la atención en el desarrollo
+  cierreAnalysis        String? @db.Text  // cómo termina / CTA
+  toneOfVoice          String? @db.Text
+  scenario              String? @db.Text  // ambientación, locación, iluminación
+  cameraWork            String? @db.Text  // movimientos de cámara, cortes, ritmo de edición
+  pacingAssessment      String? @db.Text  // si es muy lento/rápido para el formato
+  retentionDropAnalysis String? @db.Text  // qué pasaba en el video en el punto donde cae la retención
+  creativeAnalyzedAt    DateTime?
 
   model             String   @default("gpt-4o")
   createdAt         DateTime @default(now())

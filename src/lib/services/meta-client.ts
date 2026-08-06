@@ -186,7 +186,12 @@ export async function fetchFacebookPosts(creds: MetaCredentials, limit = 50) {
   return metaFetch<PagedResponse<FacebookPostRaw>>(`/${creds.facebookPageId}/posts`, {
     access_token: creds.accessToken,
     fields:
-      "id,message,created_time,permalink_url,full_picture,attachments{media_type,media},insights.metric(post_impressions,post_engaged_users,post_clicks,post_reactions_by_type_total)",
+      "id,message,created_time,permalink_url,full_picture,attachments{media_type,media,target{id}}," +
+      "insights.metric(post_impressions,post_engaged_users,post_clicks,post_reactions_by_type_total," +
+      // Curva de retención — solo aplica a posts con video; para posts de
+      // imagen/carrusel Meta simplemente no devuelve estas métricas.
+      "post_video_avg_time_watched,post_video_p25_watched_actions,post_video_p50_watched_actions," +
+      "post_video_p75_watched_actions,post_video_p95_watched_actions,post_video_length)",
     limit: String(limit),
   });
 }

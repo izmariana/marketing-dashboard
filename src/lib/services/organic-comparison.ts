@@ -27,18 +27,20 @@ function statsFromPosts(posts: Post[]): { count: number; totalEngagement: number
 
 /**
  * Arma la comparación orgánica entre Meta (Facebook + Instagram combinados),
- * TikTok y LinkedIn. LinkedIn siempre se devuelve con connected:false porque
- * todavía no hay integración con su API — se muestra igual en la tabla como
- * "Próximamente" en vez de ocultarse, para que quede claro qué falta.
+ * TikTok y LinkedIn. Si `linkedinData` es null, LinkedIn se devuelve con
+ * connected:false (todavía no hay credenciales guardadas para esa marca) —
+ * en vez de inventar cifras se muestra como "Próximamente".
  */
 export function compareOrganicPlatforms(
   metaPosts: Post[],
   tiktokPosts: Post[],
   metaFollowers: FollowerAgg,
-  tiktokFollowers: FollowerAgg
+  tiktokFollowers: FollowerAgg,
+  linkedinData: { posts: Post[]; followers: FollowerAgg } | null = null
 ): OrganicPlatformStat[] {
   const meta = statsFromPosts(metaPosts);
   const tiktok = statsFromPosts(tiktokPosts);
+  const linkedin = linkedinData ? statsFromPosts(linkedinData.posts) : null;
 
   return [
     {
@@ -63,16 +65,28 @@ export function compareOrganicPlatforms(
       avgEngagementPerPost: tiktok.count > 0 ? Math.round(tiktok.totalEngagement / tiktok.count) : 0,
       avgReach: tiktok.avgReach,
     },
-    {
-      network: "LINKEDIN",
-      label: "LinkedIn",
-      connected: false,
-      followers: null,
-      followerGrowth: null,
-      posts: null,
-      totalEngagement: null,
-      avgEngagementPerPost: null,
-      avgReach: null,
-    },
+    linkedin
+      ? {
+          network: "LINKEDIN",
+          label: "LinkedIn",
+          connected: true,
+          followers: linkedinData!.followers.current,
+          followerGrowth: linkedinData!.followers.newInPeriod,
+          posts: linkedin.count,
+          totalEngagement: linkedin.totalEngagement,
+          avgEngagementPerPost: linkedin.count > 0 ? Math.round(linkedin.totalEngagement / linkedin.count) : 0,
+          avgReach: linkedin.avgReach,
+        }
+      : {
+          network: "LINKEDIN",
+          label: "LinkedIn",
+          connected: false,
+          followers: null,
+          followerGrowth: null,
+          posts: null,
+          totalEngagement: null,
+          avgEngagementPerPost: null,
+          avgReach: null,
+        },
   ];
 }
