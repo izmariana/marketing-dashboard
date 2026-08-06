@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth/auth";
-import { isDatabaseConfigured } from "@/lib/db/prisma";
+import { getPrisma, isDatabaseConfigured } from "@/lib/db/prisma";
 import { syncAllBrands, syncBrand } from "@/lib/services/sync-service";
 import { syncAllGaBrands, syncGaBrand } from "@/lib/services/ga-sync-service";
 import { syncAllMetaContent, syncMetaContent } from "@/lib/services/meta-content-sync";
 import { syncAllTikTokContent, syncTikTokContent } from "@/lib/services/tiktok-content-sync";
 import { syncAllLinkedInContent, syncLinkedInContent } from "@/lib/services/linkedin-content-sync";
-import { generateAlertsForAllBrands } from "@/lib/services/alert-service";
+import { generateAlertsForAllBrands, generateAlertsForBrand } from "@/lib/services/alert-service";
 
 // Traer datos de Meta + Google Analytics de varias marcas puede tardar más
 // que el límite por defecto de una función serverless — se amplía el tiempo
@@ -14,11 +14,12 @@ import { generateAlertsForAllBrands } from "@/lib/services/alert-service";
 export const maxDuration = 60;
 
 /**
- * POST /api/sync            → sincroniza Meta Ads, contenido orgánico de Meta, TikTok, LinkedIn y Google Analytics de todas las marcas
- * POST /api/sync?brandId=xx → sincroniza solo una marca
+ * POST /api/sync                    → sincroniza las 5 plataformas de todas las marcas
+ * POST /api/sync?brandId=xx         → sincroniza solo una marca (por ID interno)
+ * POST /api/sync?brandSlug=segal... → sincroniza solo una marca (por slug — lo que usa el botón "Actualizar ahora" dentro de cada marca)
  *
- * También se invoca automáticamente por Vercel Cron cada 6 horas
- * (ver vercel.json) mediante GET con el header de autorización de cron.
+ * También se invoca automáticamente por Vercel Cron cada día (ver
+ * vercel.json) mediante GET con el header de autorización de cron.
  */
 async function runSync(brandId?: string) {
   if (!isDatabaseConfigured) {
@@ -36,7 +37,7 @@ async function runSync(brandId?: string) {
     brandId ? [await syncLinkedInContent(brandId)] : syncAllLinkedInContent(),
     brandId ? [await syncGaBrand(brandId)] : syncAllGaBrands(),
   ]);
-  const alertsCreated = await generateAlertsForAllBrands();
+  const alertsCreated = brandId ? await generateAlertsForBrand(brandId) : await generateAlertsForAllBrands();
 
   return {
     synced: true,
@@ -55,8 +56,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
-  const brandId = req.nextUrl.searchParams.get("brandId") ?? undefined;
+  let brandId = req.nextUrl.searchParams.get("brandId") ?? undefined;
+  const brandSlug = req.nextUrl.searchParams.get("brandSlug");
+
   try {
+    if (!brandId && brandSlug && isDatabaseConfigured) {
+      const prisma = await getPrisma();
+      const brand = await prisma.brand.findUnique({ where: { slug: brandSlug as never } });
+      if (!brand) return NextResponse.json({ synced: false, reason: `Marca '${brandSlug}' no encontrada.` }, { status: 404 });
+      brandId = brand.id;
+    }
+
     const result = await runSync(brandId);
     return NextResponse.json(result);
   } catch (err) {
