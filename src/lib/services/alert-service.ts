@@ -300,13 +300,7 @@ export async function generateAlertsForAllBrands(): Promise<number> {
   const brands = await prisma.brand.findMany();
   let total = 0;
   for (const brand of brands) {
-    try {
-      total += await generateAlertsForBrand(brand.id);
-    } catch (err) {
-      // Una marca con datos raros no debe tumbar la sincronización de las
-      // demás — se registra el error y se sigue con la siguiente.
-      console.error(`Error generando alertas para la marca ${brand.slug}:`, err);
-    }
+    total += await generateAlertsForBrand(brand.id);
   }
   return total;
 }

@@ -28,7 +28,7 @@ export function BrandPageTabs({ slug }: { slug: string }) {
 
   return (
     <div>
-      <Topbar title={brand?.name ?? "Marca"} brandSlug={slug} />
+      <Topbar title={brand?.name ?? "Marca"} />
 
       <div className="p-6 space-y-5 max-w-[1400px]">
         <div className="flex items-center justify-between flex-wrap gap-3">
