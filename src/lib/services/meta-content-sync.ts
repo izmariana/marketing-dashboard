@@ -18,17 +18,6 @@ export interface MetaContentSyncResult {
   error?: string;
 }
 
-function extractFbInsight(post: FacebookPostRaw, metricName: string): number {
-  const entry = post.insights?.data.find((d) => d.name === metricName);
-  const raw = entry?.values?.[0]?.value;
-  if (typeof raw === "number") return raw;
-  if (raw && typeof raw === "object") {
-    // post_reactions_by_type_total viene como {like: N, love: N, ...}
-    return Object.values(raw as Record<string, number>).reduce((a, v) => a + (Number(v) || 0), 0);
-  }
-  return 0;
-}
-
 function fbPostType(post: FacebookPostRaw): "IMAGE" | "VIDEO" | "CAROUSEL" {
   const attachments = post.attachments?.data ?? [];
   if (attachments.length > 1) return "CAROUSEL";
@@ -91,19 +80,14 @@ export async function syncMetaContent(brandId: string): Promise<MetaContentSyncR
     if (contentCreds.facebookPageId) {
       const fbPosts = await fetchFacebookPosts(contentCreds, 30);
       const shaped = fbPosts.data.map((p) => {
-        const reach = extractFbInsight(p, "post_impressions"); // Meta no separa reach/impressions para posts orgánicos de página
-        const engagedUsers = extractFbInsight(p, "post_engaged_users");
-        const clicks = extractFbInsight(p, "post_clicks");
-        const likes = extractFbInsight(p, "post_reactions_by_type_total");
-        return { post: p, reach, engagement: engagedUsers, clicks, likes };
+        const likes = p.likes?.summary?.total_count ?? 0;
+        const comments = p.comments?.summary?.total_count ?? 0;
+        const shares = p.shares?.count ?? 0;
+        return { post: p, likes, comments, shares, engagement: likes + comments + shares };
       });
       const maxEngagement = Math.max(1, ...shaped.map((s) => s.engagement));
-      const maxCtr = Math.max(0.01, ...shaped.map((s) => (s.reach > 0 ? (s.clicks / s.reach) * 100 : 0)));
-      const maxReach = Math.max(1, ...shaped.map((s) => s.reach));
 
       for (const s of shaped) {
-        const ctr = s.reach > 0 ? (s.clicks / s.reach) * 100 : 0;
-
         await prisma.post.upsert({
           where: { metaPostId: s.post.id },
           create: {
@@ -117,24 +101,25 @@ export async function syncMetaContent(brandId: string): Promise<MetaContentSyncR
             thumbnailUrl: s.post.full_picture ?? null,
             copy: s.post.message ?? null,
             permalink: s.post.permalink_url ?? null,
-            reach: s.reach,
-            impressions: s.reach,
+            // Meta ya no permite pedir alcance/impresiones de forma
+            // confiable sin el permiso avanzado de Insights — quedan en 0
+            // por ahora (ver nota en meta-client.ts → fetchFacebookPosts).
+            reach: 0,
+            impressions: 0,
             likes: s.likes,
-            comments: 0,
-            shares: 0,
+            comments: s.comments,
+            shares: s.shares,
             engagement: s.engagement,
-            clicks: s.clicks,
-            ctr,
-            performanceScore: computeScore(s.engagement, ctr, s.reach, maxEngagement, maxCtr, maxReach),
+            clicks: 0,
+            ctr: 0,
+            performanceScore: computeScore(s.engagement, 0, 0, maxEngagement, 1, 1),
           },
           update: {
-            reach: s.reach,
-            impressions: s.reach,
             likes: s.likes,
+            comments: s.comments,
+            shares: s.shares,
             engagement: s.engagement,
-            clicks: s.clicks,
-            ctr,
-            performanceScore: computeScore(s.engagement, ctr, s.reach, maxEngagement, maxCtr, maxReach),
+            performanceScore: computeScore(s.engagement, 0, 0, maxEngagement, 1, 1),
           },
         });
         postsSynced++;

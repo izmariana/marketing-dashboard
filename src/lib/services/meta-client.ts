@@ -141,9 +141,9 @@ export interface FacebookPostRaw {
   permalink_url?: string;
   full_picture?: string;
   attachments?: { data: { media_type: string; media?: { image?: { src: string } } }[] };
-  insights?: {
-    data: { name: string; values: { value: number }[] }[];
-  };
+  shares?: { count: number };
+  likes?: { summary: { total_count: number } };
+  comments?: { summary: { total_count: number } };
 }
 
 /**
@@ -180,6 +180,18 @@ export async function getPageAccessToken(userAccessToken: string, pageId: string
   return page.access_token;
 }
 
+/**
+ * IMPORTANTE: se usan campos básicos de Graph API (likes, comments, shares)
+ * en vez de `insights.metric(...)`. Los nombres de métricas de Insights
+ * cambian con cierta frecuencia entre versiones de la API de Meta y, si
+ * un solo nombre queda inválido, Meta rechaza la solicitud COMPLETA con
+ * "(#100) The value must be a valid insights metric" — tumbando toda la
+ * sincronización de contenido, no solo esa métrica. Los campos básicos de
+ * abajo son mucho más estables. Costo: no tenemos "alcance"/"impresiones"
+ * reales por post (quedan en 0) — se puede recuperar más adelante
+ * agregando insights.metric() de nuevo una vez confirmados los nombres
+ * vigentes en el Graph API Explorer con datos reales.
+ */
 export async function fetchFacebookPosts(creds: MetaCredentials, limit = 50) {
   if (!creds.facebookPageId) throw new MetaApiError("Falta Facebook Page ID en Configuración");
 
@@ -187,7 +199,7 @@ export async function fetchFacebookPosts(creds: MetaCredentials, limit = 50) {
     access_token: creds.accessToken,
     fields:
       "id,message,created_time,permalink_url,full_picture,attachments{media_type,media,target{id}}," +
-      "insights.metric(post_impressions,post_engaged_users,post_clicks,post_reactions_by_type_total)",
+      "shares,likes.summary(true),comments.summary(true)",
     limit: String(limit),
   });
 }
