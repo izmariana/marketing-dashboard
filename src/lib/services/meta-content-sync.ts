@@ -169,4 +169,72 @@ export async function syncMetaContent(brandId: string): Promise<MetaContentSyncR
             metaPostId: s.media.id,
             brandId: brand.id,
             network: "INSTAGRAM",
-            type:
+            type: igPostType(s.media),
+            fundingType: "ORGANIC",
+            publishedAt: new Date(s.media.timestamp),
+            mediaUrl: s.media.media_url ?? null,
+            thumbnailUrl: s.media.thumbnail_url ?? s.media.media_url ?? null,
+            copy: s.media.caption ?? null,
+            permalink: s.media.permalink,
+            reach: s.reach,
+            impressions: s.reach,
+            plays: s.plays,
+            likes: s.media.like_count ?? 0,
+            comments: s.media.comments_count ?? 0,
+            shares: s.shares,
+            saves: s.saves,
+            engagement,
+            performanceScore: computeScore(engagement, 0, s.reach, maxEngagement, 1, maxReach),
+          },
+          update: {
+            reach: s.reach,
+            impressions: s.reach,
+            plays: s.plays,
+            likes: s.media.like_count ?? 0,
+            comments: s.media.comments_count ?? 0,
+            shares: s.shares,
+            saves: s.saves,
+            engagement,
+            performanceScore: computeScore(engagement, 0, s.reach, maxEngagement, 1, maxReach),
+          },
+        });
+        postsSynced++;
+      }
+    }
+
+    // --- Seguidores (snapshot del día de hoy, nunca se sobrescribe el histórico) ---
+    let followerSnapshotsSynced = 0;
+    const followers = await fetchFollowerCounts(contentCreds);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    if (followers.facebookFollowers !== null) {
+      const created = await prisma.followerSnapshot.upsert({
+        where: { brandId_network_date: { brandId: brand.id, network: "FACEBOOK", date: today } },
+        create: { brandId: brand.id, network: "FACEBOOK", date: today, followers: followers.facebookFollowers, newFollowers: 0 },
+        update: { followers: followers.facebookFollowers },
+      });
+      if (created) followerSnapshotsSynced++;
+    }
+    if (followers.instagramFollowers !== null) {
+      const created = await prisma.followerSnapshot.upsert({
+        where: { brandId_network_date: { brandId: brand.id, network: "INSTAGRAM", date: today } },
+        create: { brandId: brand.id, network: "INSTAGRAM", date: today, followers: followers.instagramFollowers, newFollowers: 0 },
+        update: { followers: followers.instagramFollowers },
+      });
+      if (created) followerSnapshotsSynced++;
+    }
+
+    return { brandSlug: brand.slug, postsSynced, followerSnapshotsSynced };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Error desconocido sincronizando contenido de Meta";
+    return { brandSlug: brand.slug, postsSynced: 0, followerSnapshotsSynced: 0, error: message };
+  }
+}
+
+export async function syncAllMetaContent(): Promise<MetaContentSyncResult[]> {
+  const prisma = await getPrisma();
+  const brands = await prisma.brand.findMany({ where: { metaCredential: { isNot: null } } });
+  type BrandRow = (typeof brands)[number];
+  return Promise.all(brands.map((brand: BrandRow) => syncMetaContent(brand.id)));
+}
