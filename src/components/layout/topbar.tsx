@@ -7,7 +7,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useTheme } from "@/app/providers";
 import { cn } from "@/lib/utils";
 
-export function Topbar({ title, alertCount = 0 }: { title: string; alertCount?: number }) {
+export function Topbar({ title, alertCount = 0, brandSlug }: { title: string; alertCount?: number; brandSlug?: string }) {
   const { theme, toggle } = useTheme();
   const { data: session } = useSession();
   const queryClient = useQueryClient();
@@ -18,7 +18,12 @@ export function Topbar({ title, alertCount = 0 }: { title: string; alertCount?: 
     setSyncing(true);
     setResult(null);
     try {
-      const res = await fetch("/api/sync", { method: "POST" });
+      // Si el botón se aprieta desde la página de una marca específica,
+      // solo sincronizamos esa marca (no las 3) — reduce a un tercio la
+      // carga de llamadas a APIs externas y baja el riesgo de que la
+      // función serverless se corte por tiempo.
+      const url = brandSlug ? `/api/sync?brandSlug=${brandSlug}` : "/api/sync";
+      const res = await fetch(url, { method: "POST" });
       const data = await res.json();
 
       if (!res.ok) {
