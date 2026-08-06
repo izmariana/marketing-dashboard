@@ -43,40 +43,6 @@ export function usePostAnalysis() {
   });
 }
 
-export interface CreativeAnalysisResult {
-  transcript: string;
-  framesAnalyzed: number;
-  hookAnalysis: string;
-  ganchoAnalysis: string;
-  cierreAnalysis: string;
-  toneOfVoice: string;
-  scenario: string;
-  cameraWork: string;
-  pacingAssessment: string;
-  retentionDropAnalysis: string;
-}
-
-/**
- * A diferencia de usePostAnalysis (rápido, barato), esto descarga y
- * procesa el video real — puede tardar bastante más y tiene un costo
- * distinto (Whisper + GPT-4o Vision). Por eso siempre es una acción
- * explícita del usuario, nunca automática.
- */
-export function usePostCreativeAnalysis() {
-  const queryClient = useQueryClient();
-  return useMutation<CreativeAnalysisResult, Error, string>({
-    mutationFn: async (postId: string) => {
-      const res = await fetch(`/api/posts/${postId}/analyze-creative`, { method: "POST" });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "No se pudo generar el análisis creativo");
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["posts"] });
-    },
-  });
-}
-
 export function useComparePosts() {
   return useMutation<
     { postA: Post; postB: Post; scoreA: number; scoreB: number; winner: string; conclusion: string },
