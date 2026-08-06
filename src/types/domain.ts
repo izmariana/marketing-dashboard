@@ -115,7 +115,8 @@ export type AlertType =
   | "FOLLOWER_DROP"
   | "POST_UNDERPERFORMING"
   | "LANDING_PAGE_ABANDONMENT"
-  | "CAMPAIGN_NO_RESULTS";
+  | "CAMPAIGN_NO_RESULTS"
+  | "SYNC_ERROR";
 
 export type AlertSeverity = "INFO" | "WARNING" | "CRITICAL";
 
