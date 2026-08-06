@@ -50,18 +50,24 @@ export async function GET(req: NextRequest) {
   }
 
   const prisma = await getPrisma();
-  const dbBrand = await prisma.brand.findUnique({ where: { slug: brand.slug as never } });
+  const dbBrand = await prisma.brand.findUnique({ where: { slug: brand.slug as never }, include: { linkedinCredential: true } });
   if (!dbBrand) return NextResponse.json({ error: "La marca todavía no existe en la base de datos." }, { status: 404 });
 
   const since = new Date();
   since.setDate(since.getDate() - days);
 
-  const [metaPostRows, tiktokPostRows, fbSnapRows, igSnapRows, tiktokSnapRows] = await Promise.all([
+  const [metaPostRows, tiktokPostRows, linkedinPostRows, fbSnapRows, igSnapRows, tiktokSnapRows, linkedinSnapRows] = await Promise.all([
     prisma.post.findMany({ where: { brandId: dbBrand.id, network: { in: ["FACEBOOK", "INSTAGRAM"] as never }, publishedAt: { gte: since } } }),
     prisma.post.findMany({ where: { brandId: dbBrand.id, network: "TIKTOK" as never, publishedAt: { gte: since } } }),
+    dbBrand.linkedinCredential
+      ? prisma.post.findMany({ where: { brandId: dbBrand.id, network: "LINKEDIN" as never, publishedAt: { gte: since } } })
+      : Promise.resolve([] as Awaited<ReturnType<typeof prisma.post.findMany>>),
     prisma.followerSnapshot.findMany({ where: { brandId: dbBrand.id, network: "FACEBOOK" as never, date: { gte: since } }, orderBy: { date: "asc" } }),
     prisma.followerSnapshot.findMany({ where: { brandId: dbBrand.id, network: "INSTAGRAM" as never, date: { gte: since } }, orderBy: { date: "asc" } }),
     prisma.followerSnapshot.findMany({ where: { brandId: dbBrand.id, network: "TIKTOK" as never, date: { gte: since } }, orderBy: { date: "asc" } }),
+    dbBrand.linkedinCredential
+      ? prisma.followerSnapshot.findMany({ where: { brandId: dbBrand.id, network: "LINKEDIN" as never, date: { gte: since } }, orderBy: { date: "asc" } })
+      : Promise.resolve([] as Awaited<ReturnType<typeof prisma.followerSnapshot.findMany>>),
   ]);
 
   type PostRow = (typeof metaPostRows)[number];
@@ -90,7 +96,7 @@ export async function GET(req: NextRequest) {
     spend: 0,
     leads: 0,
     cpl: 0,
-    performanceScore: r.performanceScore,
+    performanceScore: r.performanceScore ?? 0,
   });
 
   const toFollowerAgg = (rows: SnapRow[]) =>
@@ -99,6 +105,7 @@ export async function GET(req: NextRequest) {
   const fbFollowers = toFollowerAgg(fbSnapRows);
   const igFollowers = toFollowerAgg(igSnapRows);
   const tiktokFollowers = toFollowerAgg(tiktokSnapRows);
+  const linkedinFollowers = toFollowerAgg(linkedinSnapRows);
 
   const metaFollowersCombined = {
     current: fbFollowers.current + igFollowers.current,
@@ -109,7 +116,8 @@ export async function GET(req: NextRequest) {
     metaPostRows.map(toPost),
     tiktokPostRows.map(toPost),
     metaFollowersCombined,
-    { current: tiktokFollowers.current, newInPeriod: tiktokFollowers.newInPeriod }
+    { current: tiktokFollowers.current, newInPeriod: tiktokFollowers.newInPeriod },
+    dbBrand.linkedinCredential ? { posts: linkedinPostRows.map(toPost), followers: linkedinFollowers } : null
   );
 
   return NextResponse.json({ brand, rows, source: "database" });
