@@ -187,11 +187,7 @@ export async function fetchFacebookPosts(creds: MetaCredentials, limit = 50) {
     access_token: creds.accessToken,
     fields:
       "id,message,created_time,permalink_url,full_picture,attachments{media_type,media,target{id}}," +
-      "insights.metric(post_impressions,post_engaged_users,post_clicks,post_reactions_by_type_total," +
-      // Curva de retención — solo aplica a posts con video; para posts de
-      // imagen/carrusel Meta simplemente no devuelve estas métricas.
-      "post_video_avg_time_watched,post_video_p25_watched_actions,post_video_p50_watched_actions," +
-      "post_video_p75_watched_actions,post_video_p95_watched_actions,post_video_length)",
+      "insights.metric(post_impressions,post_engaged_users,post_clicks,post_reactions_by_type_total)",
     limit: String(limit),
   });
 }
@@ -265,20 +261,10 @@ export async function fetchFollowerCounts(creds: MetaCredentials): Promise<{ fac
 /**
  * Verifica las credenciales consultando datos básicos de la cuenta
  * publicitaria (nombre, estado, moneda) y cuenta cuántas campañas existen
- * en total — sirve para diagnosticar exactamente qué ve Meta con este
- * token y este Ad Account ID, sin depender de fechas ni permisos extra.
- */
-/**
- * Verifica las credenciales consultando datos básicos de la cuenta
- * publicitaria (nombre, estado, moneda) y cuenta cuántas campañas existen
- * en total — sirve para diagnosticar exactamente qué ve Meta con este
- * token y este Ad Account ID, sin depender de fechas ni permisos extra.
- *
- * También prueba, por separado, la Página de Facebook y la cuenta de
- * Instagram Business (si están configuradas) — usando el Token de Página
- * real (ver getPageAccessToken), que es lo que de verdad usa la
- * sincronización de contenido. Antes este chequeo no existía, por eso
- * "Conexión exitosa" no garantizaba que el contenido orgánico funcionara.
+ * en total, y también prueba por separado la Página de Facebook y la
+ * cuenta de Instagram Business (si están configuradas) — usando el Token
+ * de Página real (ver getPageAccessToken), que es lo que de verdad usa la
+ * sincronización de contenido.
  */
 export async function testMetaConnection(creds: MetaCredentials): Promise<{
   ok: boolean;
@@ -317,10 +303,6 @@ export async function testMetaConnection(creds: MetaCredentials): Promise<{
 
     if (creds.instagramBusinessId) {
       try {
-        // La cuenta de Instagram Business cuelga de la Página, así que usa
-        // el mismo Token de Página (si ya lo resolvimos arriba); si la
-        // Página falló, igual lo intenta con el Token de Usuario como
-        // respaldo, para no ocultar información.
         const tokenForIg = pageAccessToken ?? creds.accessToken;
         const igData = await metaFetch<{ username?: string }>(`/${creds.instagramBusinessId}`, {
           access_token: tokenForIg,

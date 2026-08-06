@@ -95,14 +95,7 @@ export async function syncMetaContent(brandId: string): Promise<MetaContentSyncR
         const engagedUsers = extractFbInsight(p, "post_engaged_users");
         const clicks = extractFbInsight(p, "post_clicks");
         const likes = extractFbInsight(p, "post_reactions_by_type_total");
-        // Curva de retención — solo llega poblada si el post es un video.
-        const videoLength = extractFbInsight(p, "post_video_length") || null;
-        const avgWatch = extractFbInsight(p, "post_video_avg_time_watched") || null;
-        const p25 = extractFbInsight(p, "post_video_p25_watched_actions") || null;
-        const p50 = extractFbInsight(p, "post_video_p50_watched_actions") || null;
-        const p75 = extractFbInsight(p, "post_video_p75_watched_actions") || null;
-        const p95 = extractFbInsight(p, "post_video_p95_watched_actions") || null;
-        return { post: p, reach, engagement: engagedUsers, clicks, likes, videoLength, avgWatch, p25, p50, p75, p95 };
+        return { post: p, reach, engagement: engagedUsers, clicks, likes };
       });
       const maxEngagement = Math.max(1, ...shaped.map((s) => s.engagement));
       const maxCtr = Math.max(0.01, ...shaped.map((s) => (s.reach > 0 ? (s.clicks / s.reach) * 100 : 0)));
@@ -110,14 +103,6 @@ export async function syncMetaContent(brandId: string): Promise<MetaContentSyncR
 
       for (const s of shaped) {
         const ctr = s.reach > 0 ? (s.clicks / s.reach) * 100 : 0;
-        // p25 es la base (~100% de quienes empezaron a ver) — los demás
-        // percentiles se expresan como % relativo a esa base, ya que Meta
-        // entrega conteos absolutos, no porcentajes directos.
-        const retentionP25 = s.p25 ? 100 : null;
-        const retentionP50 = s.p25 && s.p50 ? Math.round((s.p50 / s.p25) * 100) : null;
-        const retentionP75 = s.p25 && s.p75 ? Math.round((s.p75 / s.p25) * 100) : null;
-        const retentionP95 = s.p25 && s.p95 ? Math.round((s.p95 / s.p25) * 100) : null;
-        const avgWatchPct = s.avgWatch && s.videoLength ? Math.round((s.avgWatch / s.videoLength) * 10000) / 100 : null;
 
         await prisma.post.upsert({
           where: { metaPostId: s.post.id },
@@ -140,12 +125,6 @@ export async function syncMetaContent(brandId: string): Promise<MetaContentSyncR
             engagement: s.engagement,
             clicks: s.clicks,
             ctr,
-            videoDurationSec: s.videoLength ? Math.round(s.videoLength) : null,
-            avgWatchPct,
-            retentionP25,
-            retentionP50,
-            retentionP75,
-            retentionP95,
             performanceScore: computeScore(s.engagement, ctr, s.reach, maxEngagement, maxCtr, maxReach),
           },
           update: {
@@ -155,12 +134,6 @@ export async function syncMetaContent(brandId: string): Promise<MetaContentSyncR
             engagement: s.engagement,
             clicks: s.clicks,
             ctr,
-            videoDurationSec: s.videoLength ? Math.round(s.videoLength) : null,
-            avgWatchPct,
-            retentionP25,
-            retentionP50,
-            retentionP75,
-            retentionP95,
             performanceScore: computeScore(s.engagement, ctr, s.reach, maxEngagement, maxCtr, maxReach),
           },
         });
@@ -196,72 +169,4 @@ export async function syncMetaContent(brandId: string): Promise<MetaContentSyncR
             metaPostId: s.media.id,
             brandId: brand.id,
             network: "INSTAGRAM",
-            type: igPostType(s.media),
-            fundingType: "ORGANIC",
-            publishedAt: new Date(s.media.timestamp),
-            mediaUrl: s.media.media_url ?? null,
-            thumbnailUrl: s.media.thumbnail_url ?? s.media.media_url ?? null,
-            copy: s.media.caption ?? null,
-            permalink: s.media.permalink,
-            reach: s.reach,
-            impressions: s.reach,
-            plays: s.plays,
-            likes: s.media.like_count ?? 0,
-            comments: s.media.comments_count ?? 0,
-            shares: s.shares,
-            saves: s.saves,
-            engagement,
-            performanceScore: computeScore(engagement, 0, s.reach, maxEngagement, 1, maxReach),
-          },
-          update: {
-            reach: s.reach,
-            impressions: s.reach,
-            plays: s.plays,
-            likes: s.media.like_count ?? 0,
-            comments: s.media.comments_count ?? 0,
-            shares: s.shares,
-            saves: s.saves,
-            engagement,
-            performanceScore: computeScore(engagement, 0, s.reach, maxEngagement, 1, maxReach),
-          },
-        });
-        postsSynced++;
-      }
-    }
-
-    // --- Seguidores (snapshot del día de hoy, nunca se sobrescribe el histórico) ---
-    let followerSnapshotsSynced = 0;
-    const followers = await fetchFollowerCounts(contentCreds);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    if (followers.facebookFollowers !== null) {
-      const created = await prisma.followerSnapshot.upsert({
-        where: { brandId_network_date: { brandId: brand.id, network: "FACEBOOK", date: today } },
-        create: { brandId: brand.id, network: "FACEBOOK", date: today, followers: followers.facebookFollowers, newFollowers: 0 },
-        update: { followers: followers.facebookFollowers },
-      });
-      if (created) followerSnapshotsSynced++;
-    }
-    if (followers.instagramFollowers !== null) {
-      const created = await prisma.followerSnapshot.upsert({
-        where: { brandId_network_date: { brandId: brand.id, network: "INSTAGRAM", date: today } },
-        create: { brandId: brand.id, network: "INSTAGRAM", date: today, followers: followers.instagramFollowers, newFollowers: 0 },
-        update: { followers: followers.instagramFollowers },
-      });
-      if (created) followerSnapshotsSynced++;
-    }
-
-    return { brandSlug: brand.slug, postsSynced, followerSnapshotsSynced };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Error desconocido sincronizando contenido de Meta";
-    return { brandSlug: brand.slug, postsSynced: 0, followerSnapshotsSynced: 0, error: message };
-  }
-}
-
-export async function syncAllMetaContent(): Promise<MetaContentSyncResult[]> {
-  const prisma = await getPrisma();
-  const brands = await prisma.brand.findMany({ where: { metaCredential: { isNot: null } } });
-  type BrandRow = (typeof brands)[number];
-  return Promise.all(brands.map((brand: BrandRow) => syncMetaContent(brand.id)));
-}
+            type:
