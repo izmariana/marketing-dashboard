@@ -9,6 +9,7 @@ import { BrandComparisonChart } from "@/components/charts/brand-comparison-chart
 import { ConversionFunnel } from "@/components/charts/conversion-funnel";
 import { MetricHistoryPanel, type MetricHistoryTarget } from "@/components/dashboard/metric-history-panel";
 import { useDashboardSummary } from "@/hooks/use-dashboard-summary";
+import { useBrandComparison } from "@/hooks/use-brand-comparison";
 import { formatCurrencyCLP, formatNumber, formatPercent, formatCompact, cn } from "@/lib/utils";
 import type { MetricPoint } from "@/types/domain";
 
@@ -28,6 +29,31 @@ const EVOLUTION_METRICS: { key: keyof MetricPoint; label: string; formatter: (v:
   { key: "reach", label: "Alcance", formatter: formatCompact },
 ];
 
+type CompareGroup = "ads" | "organic" | "analytics";
+type CompareMetricKey = keyof MetricPoint | "metaFollowers" | "tiktokFollowers" | "linkedinFollowers" | "organicEngagement" | "organicPosts" | "gaSessions" | "gaUsers" | "gaConversions";
+
+interface CompareMetricDef {
+  key: CompareMetricKey;
+  label: string;
+  group: CompareGroup;
+  formatter: (v: number) => string;
+}
+
+// El comparador entre marcas no se limita a Meta Ads — incluye seguidores
+// y engagement orgánico (Meta + TikTok + LinkedIn) y tráfico/conversiones
+// de Google Analytics 4, todo en el mismo selector.
+const COMPARE_METRICS: CompareMetricDef[] = [
+  ...EVOLUTION_METRICS.map((m) => ({ ...m, group: "ads" as const })),
+  { key: "metaFollowers", label: "Seguidores Meta (FB+IG)", group: "organic", formatter: formatCompact },
+  { key: "tiktokFollowers", label: "Seguidores TikTok", group: "organic", formatter: formatCompact },
+  { key: "linkedinFollowers", label: "Seguidores LinkedIn", group: "organic", formatter: formatCompact },
+  { key: "organicEngagement", label: "Engagement orgánico total", group: "organic", formatter: formatCompact },
+  { key: "organicPosts", label: "Publicaciones orgánicas", group: "organic", formatter: formatNumber },
+  { key: "gaSessions", label: "Sesiones (GA4)", group: "analytics", formatter: formatCompact },
+  { key: "gaUsers", label: "Usuarios (GA4)", group: "analytics", formatter: formatCompact },
+  { key: "gaConversions", label: "Conversiones (GA4)", group: "analytics", formatter: formatNumber },
+];
+
 function pctChange(current: number, previous: number): number {
   if (previous === 0) return current === 0 ? 0 : 100;
   return ((current - previous) / previous) * 100;
@@ -36,9 +62,10 @@ function pctChange(current: number, previous: number): number {
 export default function DashboardPage() {
   const [days, setDays] = useState(30);
   const [evolutionMetric, setEvolutionMetric] = useState<keyof MetricPoint>("spend");
-  const [compareMetric, setCompareMetric] = useState<keyof MetricPoint>("spend");
+  const [compareMetric, setCompareMetric] = useState<CompareMetricKey>("spend");
   const [historyTarget, setHistoryTarget] = useState<MetricHistoryTarget | null>(null);
   const { data, isLoading, error } = useDashboardSummary(days);
+  const { data: brandComparison } = useBrandComparison(days);
 
   function openHistory(metric: string, label: string, formatter: (v: number) => string) {
     setHistoryTarget({ source: "meta", metric, brand: "all", label, formatter });
@@ -105,14 +132,25 @@ export default function DashboardPage() {
     });
   }, [data, evolutionMetric]);
 
+  const compareMetricDef = COMPARE_METRICS.find((m) => m.key === compareMetric)!;
+
   const comparisonData = useMemo(() => {
-    if (!data) return [];
-    return data.brandsData.map((b) => ({
-      name: b.brand.name,
-      value: Number(b.current[compareMetric]) || 0,
-      color: b.brand.themeColor,
+    if (compareMetricDef.group === "ads") {
+      if (!data) return [];
+      return data.brandsData.map((b) => ({
+        name: b.brand.name,
+        value: Number(b.current[compareMetric as keyof MetricPoint]) || 0,
+        color: b.brand.themeColor,
+      }));
+    }
+    // Orgánico y GA4 vienen de /api/brand-comparison, no de useDashboardSummary
+    if (!brandComparison) return [];
+    return brandComparison.rows.map((r) => ({
+      name: r.brandName,
+      value: Number(r[compareMetric as keyof typeof r]) || 0,
+      color: r.themeColor,
     }));
-  }, [data, compareMetric]);
+  }, [data, brandComparison, compareMetric]);
 
   if (error) {
     return (
@@ -215,24 +253,38 @@ export default function DashboardPage() {
 
         <Panel
           title="Comparación entre marcas"
-          description="Compara inversión, CTR, CPC, CPM, leads, CPL, conversiones y engagement"
+          description="Meta Ads, contenido orgánico (Meta + TikTok + LinkedIn) y Google Analytics 4, lado a lado"
           action={
             <select
               value={compareMetric}
-              onChange={(e) => setCompareMetric(e.target.value as keyof MetricPoint)}
+              onChange={(e) => setCompareMetric(e.target.value as CompareMetricKey)}
               className="text-xs rounded-md border border-border bg-surface-2 px-2 py-1.5 outline-none focus:border-accent"
             >
-              {EVOLUTION_METRICS.map((m) => (
-                <option key={m.key} value={m.key}>
-                  {m.label}
-                </option>
-              ))}
+              <optgroup label="Meta Ads">
+                {COMPARE_METRICS.filter((m) => m.group === "ads").map((m) => (
+                  <option key={m.key} value={m.key}>
+                    {m.label}
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label="Orgánico">
+                {COMPARE_METRICS.filter((m) => m.group === "organic").map((m) => (
+                  <option key={m.key} value={m.key}>
+                    {m.label}
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label="Google Analytics 4">
+                {COMPARE_METRICS.filter((m) => m.group === "analytics").map((m) => (
+                  <option key={m.key} value={m.key}>
+                    {m.label}
+                  </option>
+                ))}
+              </optgroup>
             </select>
           }
         >
-          {data && (
-            <BrandComparisonChart data={comparisonData} valueFormatter={EVOLUTION_METRICS.find((m) => m.key === compareMetric)?.formatter} />
-          )}
+          {comparisonData.length > 0 && <BrandComparisonChart data={comparisonData} valueFormatter={compareMetricDef.formatter} />}
         </Panel>
       </div>
 

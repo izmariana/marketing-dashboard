@@ -53,3 +53,32 @@ export function useContentIntelligence(brand: string, days: number) {
     },
   });
 }
+
+export interface OrganicPlatformStat {
+  network: "META" | "TIKTOK" | "LINKEDIN";
+  label: string;
+  connected: boolean;
+  followers: number | null;
+  followerGrowth: number | null;
+  posts: number | null;
+  totalEngagement: number | null;
+  avgEngagementPerPost: number | null;
+  avgReach: number | null;
+}
+
+export interface OrganicComparisonResponse {
+  brand: Brand;
+  rows: OrganicPlatformStat[];
+  source: string;
+}
+
+export function useOrganicComparison(brand: string, days: number) {
+  return useQuery<OrganicComparisonResponse>({
+    queryKey: ["organic-comparison", brand, days],
+    queryFn: async () => {
+      const res = await fetch(`/api/organic-comparison?brand=${brand}&days=${days}`);
+      if (!res.ok) throw new Error("No se pudo cargar la comparación orgánica");
+      return res.json();
+    },
+  });
+}

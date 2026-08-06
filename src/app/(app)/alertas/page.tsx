@@ -25,6 +25,7 @@ const TYPE_LABEL: Record<string, string> = {
   POST_UNDERPERFORMING: "Publicación bajo rendimiento",
   LANDING_PAGE_ABANDONMENT: "Abandono en landing page",
   CAMPAIGN_NO_RESULTS: "Campaña sin resultados",
+  SYNC_ERROR: "Error de sincronización",
 };
 
 export default function AlertasPage() {

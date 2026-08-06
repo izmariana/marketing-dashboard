@@ -86,6 +86,15 @@ export interface Post {
   leads: number;
   cpl: number;
   performanceScore: number;
+  // Curva de retención de video — solo poblada para posts de video de
+  // plataformas que la exponen (hoy: Facebook). null en el resto de casos.
+  mediaUrl?: string | null;
+  videoDurationSec?: number | null;
+  avgWatchPct?: number | null;
+  retentionP25?: number | null;
+  retentionP50?: number | null;
+  retentionP75?: number | null;
+  retentionP95?: number | null;
 }
 
 export interface AiPostInsight {

@@ -14,7 +14,7 @@ export interface FollowersResponse {
   source: string;
 }
 
-export function useFollowers(brand: string, network: "INSTAGRAM" | "FACEBOOK" | "TIKTOK", days: number) {
+export function useFollowers(brand: string, network: "INSTAGRAM" | "FACEBOOK" | "TIKTOK" | "LINKEDIN", days: number) {
   return useQuery<FollowersResponse>({
     queryKey: ["followers", brand, network, days],
     queryFn: async () => {

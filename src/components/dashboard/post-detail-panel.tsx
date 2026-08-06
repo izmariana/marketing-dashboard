@@ -2,9 +2,9 @@
 
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Sparkles, Loader2 } from "lucide-react";
+import { X, Sparkles, Loader2, Clapperboard } from "lucide-react";
 import { ScoreBadge } from "@/components/dashboard/score-badge";
-import { usePostAnalysis } from "@/hooks/use-posts";
+import { usePostAnalysis, usePostCreativeAnalysis } from "@/hooks/use-posts";
 import { formatCompact, formatCurrencyCLP, formatPercent, formatDateShort } from "@/lib/utils";
 import type { Post } from "@/types/domain";
 
@@ -25,6 +25,8 @@ const METRIC_LABELS: { key: keyof Post; label: string; formatter: (v: number) =>
 
 export function PostDetailPanel({ post, onClose }: { post: Post | null; onClose: () => void }) {
   const analysis = usePostAnalysis();
+  const creative = usePostCreativeAnalysis();
+  const isVideo = post?.type === "VIDEO" || post?.type === "REEL";
 
   return (
     <AnimatePresence>
@@ -105,6 +107,78 @@ export function PostDetailPanel({ post, onClose }: { post: Post | null; onClose:
                   </p>
                 )}
               </div>
+
+              {isVideo && (
+                <div className="rounded-lg border border-border bg-surface p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-sm font-medium flex items-center gap-1.5">
+                      <Clapperboard className="h-4 w-4 text-accent" /> Análisis creativo (guion, tono, cámara)
+                    </h4>
+                    {!creative.data && (
+                      <button
+                        onClick={() => creative.mutate(post.id)}
+                        disabled={creative.isPending}
+                        className="text-xs font-medium rounded-md bg-accent text-accent-foreground px-3 py-1.5 hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center gap-1.5"
+                      >
+                        {creative.isPending && <Loader2 className="h-3 w-3 animate-spin" />}
+                        {creative.isPending ? "Procesando video..." : "Analizar creatividad"}
+                      </button>
+                    )}
+                  </div>
+
+                  {(post.videoDurationSec || post.avgWatchPct != null) && (
+                    <div className="mb-3 grid grid-cols-2 gap-2 text-xs">
+                      {post.videoDurationSec != null && (
+                        <div className="rounded-md border border-border bg-surface-2 p-2">
+                          <p className="text-[10px] text-muted">Duración</p>
+                          <p className="font-medium">{post.videoDurationSec}s</p>
+                        </div>
+                      )}
+                      {post.avgWatchPct != null && (
+                        <div className="rounded-md border border-border bg-surface-2 p-2">
+                          <p className="text-[10px] text-muted">% visto en promedio</p>
+                          <p className="font-medium">{Number(post.avgWatchPct).toFixed(0)}%</p>
+                        </div>
+                      )}
+                      {post.retentionP50 != null && (
+                        <div className="rounded-md border border-border bg-surface-2 p-2">
+                          <p className="text-[10px] text-muted">Retención al 50%</p>
+                          <p className="font-medium">{Number(post.retentionP50).toFixed(0)}%</p>
+                        </div>
+                      )}
+                      {post.retentionP95 != null && (
+                        <div className="rounded-md border border-border bg-surface-2 p-2">
+                          <p className="text-[10px] text-muted">Retención al 95%</p>
+                          <p className="font-medium">{Number(post.retentionP95).toFixed(0)}%</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {creative.data ? (
+                    <div className="space-y-3 text-sm">
+                      <InsightBlock label="Hook (primeros segundos)" text={creative.data.hookAnalysis} />
+                      <InsightBlock label="Gancho / desarrollo" text={creative.data.ganchoAnalysis} />
+                      <InsightBlock label="Cierre" text={creative.data.cierreAnalysis} />
+                      <InsightBlock label="Tono de voz" text={creative.data.toneOfVoice} />
+                      <InsightBlock label="Escenario" text={creative.data.scenario} />
+                      <InsightBlock label="Cámara y edición" text={creative.data.cameraWork} />
+                      <InsightBlock label="Ritmo" text={creative.data.pacingAssessment} />
+                      <InsightBlock label="Dónde estuvo la caída" text={creative.data.retentionDropAnalysis} />
+                      <details className="text-[11px] text-muted">
+                        <summary className="cursor-pointer">Ver transcripción completa</summary>
+                        <p className="mt-1.5 whitespace-pre-wrap">{creative.data.transcript || "(sin audio detectable)"}</p>
+                      </details>
+                    </div>
+                  ) : creative.error ? (
+                    <p className="text-xs text-danger">{creative.error.message}</p>
+                  ) : (
+                    <p className="text-xs text-muted">
+                      Descarga el video real, transcribe el guion con IA y extrae frames para analizar cámara, ritmo y escenario. Tarda más y tiene un costo mayor que el análisis rápido de arriba — úsalo cuando quieras aprender de una publicación puntual.
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           </motion.div>
         </>

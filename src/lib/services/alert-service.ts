@@ -135,7 +135,7 @@ async function checkFollowerDrop(brandId: string): Promise<number> {
   const since = new Date();
   since.setDate(since.getDate() - 5);
 
-  const networks = ["INSTAGRAM", "FACEBOOK", "TIKTOK"] as const;
+  const networks = ["INSTAGRAM", "FACEBOOK", "TIKTOK", "LINKEDIN"] as const;
   let created = 0;
   for (const network of networks) {
     const rows = await prisma.followerSnapshot.findMany({ where: { brandId, network: network as never, date: { gte: since } }, orderBy: { date: "asc" } });
@@ -245,6 +245,38 @@ async function checkCampaignsNoResults(brandId: string): Promise<number> {
   return created;
 }
 
+/** Errores de sincronización en cualquier plataforma conectada (Meta, TikTok, LinkedIn, GA4). */
+async function checkSyncErrors(brandId: string): Promise<number> {
+  const prisma = await getPrisma();
+  const brand = await prisma.brand.findUnique({
+    where: { id: brandId },
+    include: { metaCredential: true, tiktokCredential: true, linkedinCredential: true, gaCredential: true },
+  });
+  if (!brand) return 0;
+
+  const sources: Array<{ label: string; syncStatus?: string | null; syncError?: string | null }> = [
+    { label: "Meta", syncStatus: brand.metaCredential?.syncStatus, syncError: brand.metaCredential?.syncError },
+    { label: "TikTok", syncStatus: brand.tiktokCredential?.syncStatus, syncError: brand.tiktokCredential?.syncError },
+    { label: "LinkedIn", syncStatus: brand.linkedinCredential?.syncStatus, syncError: brand.linkedinCredential?.syncError },
+    { label: "Google Analytics", syncStatus: brand.gaCredential?.syncStatus, syncError: brand.gaCredential?.syncError },
+  ];
+
+  let created = 0;
+  for (const source of sources) {
+    if (source.syncStatus === "error" && source.syncError) {
+      const ok = await createAlert(
+        brandId,
+        "SYNC_ERROR",
+        "WARNING",
+        `La sincronización de ${source.label} está fallando: ${source.syncError}`,
+        `Revisa las credenciales de ${source.label} en Configuración y usa "Probar conexión guardada" para diagnosticar.`
+      );
+      if (ok) created++;
+    }
+  }
+  return created;
+}
+
 /**
  * Corre todas las reglas de alertas para una marca. Cada alerta se crea solo
  * si no existe una equivalente sin leer en las últimas 24 horas.
@@ -258,6 +290,7 @@ export async function generateAlertsForBrand(brandId: string): Promise<number> {
     checkUnderperformingPosts(brandId),
     checkLandingPageAbandonment(brandId),
     checkCampaignsNoResults(brandId),
+    checkSyncErrors(brandId),
   ]);
   return results.reduce((a, b) => a + b, 0);
 }

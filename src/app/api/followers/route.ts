@@ -3,10 +3,10 @@ import { getPrisma, isDatabaseConfigured } from "@/lib/db/prisma";
 import { BRANDS, type BrandSlug } from "@/types/domain";
 import { generateFollowerSnapshots, aggregateFollowerGrowth } from "@/lib/mock/generator";
 
-type FollowerNetwork = "INSTAGRAM" | "FACEBOOK" | "TIKTOK";
+type FollowerNetwork = "INSTAGRAM" | "FACEBOOK" | "TIKTOK" | "LINKEDIN";
 
 /**
- * GET /api/followers?brand=&network=INSTAGRAM|FACEBOOK|TIKTOK&days=30
+ * GET /api/followers?brand=&network=INSTAGRAM|FACEBOOK|TIKTOK|LINKEDIN&days=30
  * Devuelve el histórico de seguidores y el crecimiento del período.
  */
 export async function GET(req: NextRequest) {
@@ -18,6 +18,12 @@ export async function GET(req: NextRequest) {
   if (!brand) return NextResponse.json({ error: "Marca no encontrada" }, { status: 404 });
 
   if (!isDatabaseConfigured) {
+    // No existe un generador mock para LinkedIn — todavía no hay datos de
+    // ejemplo para esa red, así que se devuelve una serie vacía en vez de
+    // inventar cifras.
+    if (network === "LINKEDIN") {
+      return NextResponse.json({ series: [], current: 0, newInPeriod: 0, growthRate: 0, source: "mock" });
+    }
     const series = generateFollowerSnapshots(brand.slug as BrandSlug, network, days);
     const growth = aggregateFollowerGrowth(series);
     return NextResponse.json({ series, ...growth, source: "mock" });

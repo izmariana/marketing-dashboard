@@ -15,7 +15,7 @@ export function FollowersSection({
   accentColor = "var(--accent)",
 }: {
   brand: string;
-  network: "INSTAGRAM" | "FACEBOOK" | "TIKTOK";
+  network: "INSTAGRAM" | "FACEBOOK" | "TIKTOK" | "LINKEDIN";
   days: number;
   accentColor?: string;
 }) {

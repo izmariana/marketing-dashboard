@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -12,7 +12,8 @@ import { CheckCircle2, Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const brandCredentialSchema = z.object({
-  metaAccessToken: z.string().min(20, "El token de acceso parece inválido"),
+  // Vacío = "no cambiar el token guardado". Si se escribe algo, debe ser un token válido.
+  metaAccessToken: z.string().refine((v) => v === "" || v.length >= 20, "El token de acceso parece inválido"),
   adAccountId: z.string().regex(/^act_\d+$/, "Debe tener el formato act_XXXXXXXXXX"),
   facebookPageId: z.string().min(1, "Requerido"),
   instagramBusinessId: z.string().min(1, "Requerido"),
@@ -36,6 +37,8 @@ function BrandCredentialCard({ brandSlug, brandName, brandColor }: { brandSlug: 
   const [saved, setSaved] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
   const [testing, setTesting] = useState(false);
+  const [hasAccessToken, setHasAccessToken] = useState(false);
+  const [loaded, setLoaded] = useState(false);
   const [testResult, setTestResult] = useState<{
     ok: boolean;
     error?: string;
@@ -43,26 +46,83 @@ function BrandCredentialCard({ brandSlug, brandName, brandColor }: { brandSlug: 
     accountStatus?: number;
     currency?: string;
     totalCampaigns?: number;
+    page?: { ok: boolean; name?: string; error?: string };
+    instagram?: { ok: boolean; username?: string; error?: string };
   } | null>(null);
   const {
     register,
     handleSubmit,
+    reset,
     formState: { errors, isSubmitting },
-  } = useForm<BrandCredentialForm>({ resolver: zodResolver(brandCredentialSchema) });
+  } = useForm<BrandCredentialForm>({
+    resolver: zodResolver(brandCredentialSchema),
+    defaultValues: { metaAccessToken: "", adAccountId: "", facebookPageId: "", instagramBusinessId: "" },
+  });
+
+  // Precarga lo que ya está guardado (menos el token, que nunca se expone)
+  // — antes el formulario siempre aparecía vacío al recargar, aunque los
+  // datos sí estuvieran guardados en la base de datos.
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/settings/meta-credentials")
+      .then((res) => res.json())
+      .then(
+        (data: {
+          statuses?: Array<{
+            brandSlug: string;
+            hasAccessToken: boolean;
+            adAccountId: string | null;
+            facebookPageId: string | null;
+            instagramBusinessId: string | null;
+          }>;
+        }) => {
+          if (cancelled) return;
+          const mine = data.statuses?.find((s) => s.brandSlug === brandSlug);
+          if (mine) {
+            setHasAccessToken(mine.hasAccessToken);
+            reset({
+              metaAccessToken: "",
+              adAccountId: mine.adAccountId ?? "",
+              facebookPageId: mine.facebookPageId ?? "",
+              instagramBusinessId: mine.instagramBusinessId ?? "",
+            });
+          }
+        }
+      )
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setLoaded(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [brandSlug, reset]);
 
   async function onSubmit(values: BrandCredentialForm) {
     setServerError(null);
+    if (!hasAccessToken && !values.metaAccessToken) {
+      setServerError("Falta el Meta Access Token — es obligatorio la primera vez que conectas esta marca.");
+      return;
+    }
     try {
       const res = await fetch("/api/settings/meta-credentials", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ brandSlug, ...values }),
+        body: JSON.stringify({
+          brandSlug,
+          ...values,
+          // Si el usuario no escribió un token nuevo, no lo mandamos — el
+          // backend conserva el que ya tenía guardado.
+          metaAccessToken: values.metaAccessToken || undefined,
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
         setServerError(data.error ?? "No se pudo guardar. Intenta de nuevo.");
         return;
       }
+      setHasAccessToken(true);
+      reset({ ...values, metaAccessToken: "" });
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
     } catch {
@@ -98,7 +158,7 @@ function BrandCredentialCard({ brandSlug, brandName, brandColor }: { brandSlug: 
             <input
               type={showToken ? "text" : "password"}
               {...register("metaAccessToken")}
-              placeholder="EAAxxxxxxxxxxxxxxxxxxxxxxxx"
+              placeholder={loaded && hasAccessToken ? "•••••••• (ya guardado — deja vacío para no cambiarlo)" : "EAAxxxxxxxxxxxxxxxxxxxxxxxx"}
               className="w-full rounded-md border border-border bg-surface-2 px-3 py-2 pr-9 text-sm outline-none focus:border-accent"
             />
             <button
@@ -174,10 +234,10 @@ function BrandCredentialCard({ brandSlug, brandName, brandColor }: { brandSlug: 
         </button>
 
         {testResult && (
-          <div className={cn("rounded-md border p-3 text-xs", testResult.ok ? "border-success/30 bg-success/5" : "border-danger/30 bg-danger/5")}>
+          <div className={cn("rounded-md border p-3 text-xs space-y-2", testResult.ok ? "border-success/30 bg-success/5" : "border-danger/30 bg-danger/5")}>
             {testResult.ok ? (
               <div className="space-y-1 text-foreground/90">
-                <p className="font-medium text-success">✓ Conexión exitosa</p>
+                <p className="font-medium text-success">✓ Meta Ads: conexión exitosa</p>
                 <p>Cuenta: <strong>{testResult.accountName}</strong> ({testResult.currency})</p>
                 <p>Estado de la cuenta: {testResult.accountStatus === 1 ? "Activa" : `código ${testResult.accountStatus}`}</p>
                 <p>Campañas encontradas en el catálogo: <strong>{testResult.totalCampaigns}</strong></p>
@@ -188,7 +248,18 @@ function BrandCredentialCard({ brandSlug, brandName, brandColor }: { brandSlug: 
                 )}
               </div>
             ) : (
-              <p className="text-danger">✗ {testResult.error}</p>
+              <p className="text-danger">✗ Meta Ads: {testResult.error}</p>
+            )}
+
+            {testResult.page && (
+              <p className={testResult.page.ok ? "text-success" : "text-danger"}>
+                {testResult.page.ok ? `✓ Página de Facebook: ${testResult.page.name}` : `✗ Página de Facebook: ${testResult.page.error}`}
+              </p>
+            )}
+            {testResult.instagram && (
+              <p className={testResult.instagram.ok ? "text-success" : "text-danger"}>
+                {testResult.instagram.ok ? `✓ Instagram: @${testResult.instagram.username}` : `✗ Instagram: ${testResult.instagram.error}`}
+              </p>
             )}
           </div>
         )}

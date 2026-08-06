@@ -5,6 +5,7 @@ import {
   fetchInstagramMedia,
   fetchInstagramMediaInsights,
   fetchFollowerCounts,
+  getPageAccessToken,
   type MetaCredentials,
   type FacebookPostRaw,
   type InstagramMediaRaw,
@@ -74,11 +75,21 @@ export async function syncMetaContent(brandId: string): Promise<MetaContentSyncR
   };
 
   try {
+    // El contenido orgánico (posts, Instagram, seguidores) necesita el
+    // Token de Página, no el Token de Usuario — ver getPageAccessToken()
+    // en meta-client.ts para el detalle de por qué. Meta Ads sigue usando
+    // creds.accessToken (Token de Usuario) sin cambios.
+    let contentCreds: MetaCredentials = creds;
+    if (creds.facebookPageId) {
+      const pageAccessToken = await getPageAccessToken(creds.accessToken, creds.facebookPageId);
+      contentCreds = { ...creds, accessToken: pageAccessToken };
+    }
+
     let postsSynced = 0;
 
     // --- Publicaciones de Facebook ---
-    if (creds.facebookPageId) {
-      const fbPosts = await fetchFacebookPosts(creds, 30);
+    if (contentCreds.facebookPageId) {
+      const fbPosts = await fetchFacebookPosts(contentCreds, 30);
       const shaped = fbPosts.data.map((p) => {
         const reach = extractFbInsight(p, "post_impressions"); // Meta no separa reach/impressions para posts orgánicos de página
         const engagedUsers = extractFbInsight(p, "post_engaged_users");
@@ -130,11 +141,11 @@ export async function syncMetaContent(brandId: string): Promise<MetaContentSyncR
     }
 
     // --- Publicaciones de Instagram ---
-    if (creds.instagramBusinessId) {
-      const igMedia = await fetchInstagramMedia(creds, 30);
+    if (contentCreds.instagramBusinessId) {
+      const igMedia = await fetchInstagramMedia(contentCreds, 30);
       const withInsights = await Promise.all(
         igMedia.data.map(async (m) => {
-          const insights = await fetchInstagramMediaInsights(creds, m.id, m.media_product_type ?? "FEED").catch(() => null);
+          const insights = await fetchInstagramMediaInsights(contentCreds, m.id, m.media_product_type ?? "FEED").catch(() => null);
           const getMetric = (name: string) => insights?.data.find((d) => d.name === name)?.values?.[0]?.value ?? 0;
           return {
             media: m,
@@ -192,7 +203,7 @@ export async function syncMetaContent(brandId: string): Promise<MetaContentSyncR
 
     // --- Seguidores (snapshot del día de hoy, nunca se sobrescribe el histórico) ---
     let followerSnapshotsSynced = 0;
-    const followers = await fetchFollowerCounts(creds);
+    const followers = await fetchFollowerCounts(contentCreds);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 

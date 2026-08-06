@@ -7,7 +7,10 @@ import { BRANDS } from "@/types/domain";
 
 const bodySchema = z.object({
   brandSlug: z.enum(["informes_comerciales", "inversiones_cinco", "segal_deudores"]),
-  metaAccessToken: z.string().min(20),
+  // El token es opcional en la actualización: si no se manda, se conserva
+  // el que ya estaba guardado (así no hay que re-pegarlo solo para
+  // corregir un ID). Es obligatorio la primera vez (se valida más abajo).
+  metaAccessToken: z.string().min(20).optional(),
   adAccountId: z.string().regex(/^act_\d+$/),
   facebookPageId: z.string().min(1),
   instagramBusinessId: z.string().min(1),
@@ -49,7 +52,16 @@ export async function POST(req: NextRequest) {
     update: {},
   });
 
-  const encryptedToken = encryptSecret(metaAccessToken);
+  const existing = await prisma.metaCredential.findUnique({ where: { brandId: brand.id } });
+
+  if (!existing && !metaAccessToken) {
+    return NextResponse.json(
+      { error: "Falta el Meta Access Token — es obligatorio la primera vez que conectas esta marca." },
+      { status: 400 }
+    );
+  }
+
+  const encryptedToken = metaAccessToken ? encryptSecret(metaAccessToken) : existing!.accessTokenEnc;
 
   await prisma.metaCredential.upsert({
     where: { brandId: brand.id },
@@ -76,8 +88,10 @@ export async function POST(req: NextRequest) {
 
 /**
  * GET /api/settings/meta-credentials
- * Devuelve, por marca, si ya hay credenciales guardadas (sin exponer el
- * token). Sirve para mostrar un indicador de "Conectado" en Configuración.
+ * Devuelve, por marca, si ya hay credenciales guardadas y los valores no
+ * sensibles (Ad Account ID, Facebook Page ID, Instagram Business ID) para
+ * que Configuración pueda precargar el formulario. El token de acceso
+ * NUNCA se devuelve — solo `hasAccessToken` para saber si ya existe uno.
  */
 export async function GET() {
   if (!isDatabaseConfigured) {
@@ -91,6 +105,10 @@ export async function GET() {
   const statuses = brands.map((b: BrandWithCredential) => ({
     brandSlug: b.slug,
     connected: Boolean(b.metaCredential),
+    hasAccessToken: Boolean(b.metaCredential?.accessTokenEnc),
+    adAccountId: b.metaCredential?.adAccountId ?? null,
+    facebookPageId: b.metaCredential?.facebookPageId ?? null,
+    instagramBusinessId: b.metaCredential?.instagramBusinessId ?? null,
     lastSyncedAt: b.metaCredential?.lastSyncedAt ?? null,
     syncStatus: b.metaCredential?.syncStatus ?? null,
   }));

@@ -55,6 +55,8 @@ model Brand {
 
   // Credenciales (encriptadas a nivel de aplicación antes de persistir)
   metaCredential      MetaCredential?
+  tiktokCredential    TiktokCredential?
+  linkedinCredential  LinkedinCredential?
 
   campaigns           Campaign[]
   posts               Post[]
@@ -109,6 +111,38 @@ model AppSettings {
 // ---------------------------------------------------------------------------
 // Google Analytics 4
 // ---------------------------------------------------------------------------
+
+model TiktokCredential {
+  id             String    @id @default(cuid())
+  brandId        String    @unique
+  brand          Brand     @relation(fields: [brandId], references: [id], onDelete: Cascade)
+
+  accessTokenEnc String    // TikTok Access Token (encriptado, AES-256-GCM)
+  openId         String    // Open ID de la cuenta de negocio de TikTok
+
+  lastSyncedAt   DateTime?
+  syncStatus     String?   // idle | syncing | error
+  syncError      String?
+
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
+model LinkedinCredential {
+  id              String    @id @default(cuid())
+  brandId         String    @unique
+  brand           Brand     @relation(fields: [brandId], references: [id], onDelete: Cascade)
+
+  accessTokenEnc  String    // LinkedIn Access Token (encriptado, AES-256-GCM)
+  organizationUrn String    // ej: urn:li:organization:12345678
+
+  lastSyncedAt    DateTime?
+  syncStatus      String?   // idle | syncing | error
+  syncError       String?
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
 
 model GaCredential {
   id                    String   @id @default(cuid())
@@ -458,6 +492,7 @@ enum AlertType {
   POST_UNDERPERFORMING
   LANDING_PAGE_ABANDONMENT
   CAMPAIGN_NO_RESULTS
+  SYNC_ERROR
 }
 
 enum AlertSeverity {

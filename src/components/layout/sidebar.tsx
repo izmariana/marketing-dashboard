@@ -11,7 +11,6 @@ import {
   FileBarChart,
   Settings,
   BarChart3,
-  Briefcase,
   GitCompareArrows,
   Bell,
 } from "lucide-react";
@@ -32,6 +31,7 @@ interface NavGroup {
 type NavItem = NavLeaf | NavGroup;
 
 const NAV: NavItem[] = [
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   {
     label: "Marcas",
     icon: Building2,
@@ -42,7 +42,6 @@ const NAV: NavItem[] = [
     ],
   },
   { href: "/campanas", label: "Campañas", icon: Megaphone },
-  { href: "/linkedin", label: "LinkedIn", icon: Briefcase, disabled: true },
   { href: "/comparacion", label: "Comparación", icon: GitCompareArrows },
   { href: "/alertas", label: "Alertas", icon: Bell },
   { href: "/recomendaciones", label: "Recomendaciones IA", icon: Sparkles },

@@ -7,6 +7,7 @@ import { getPeriodRange, type ReportPeriod } from "@/lib/utils/report-periods";
 
 /**
  * GET /api/reports/export?brand=&format=csv|xlsx|pdf&period=daily|weekly|monthly|quarterly|yearly
+ * GET /api/reports/export?brand=&format=csv|xlsx|pdf&since=YYYY-MM-DD&until=YYYY-MM-DD   (rango personalizado)
  * GET /api/reports/export?brand=&format=csv|xlsx|pdf&days=30   (compatibilidad hacia atrás)
  *
  * Genera y descarga el reporte en el formato solicitado, alineado al
@@ -17,11 +18,26 @@ export async function GET(req: NextRequest) {
   const brand = req.nextUrl.searchParams.get("brand");
   const format = req.nextUrl.searchParams.get("format") ?? "pdf";
   const periodParam = req.nextUrl.searchParams.get("period") as ReportPeriod | null;
+  const sinceParam = req.nextUrl.searchParams.get("since");
+  const untilParam = req.nextUrl.searchParams.get("until");
   const days = Number(req.nextUrl.searchParams.get("days") ?? "30");
 
   if (!brand) return NextResponse.json({ error: "Falta el parámetro 'brand'" }, { status: 400 });
 
-  const range = periodParam ? getPeriodRange(periodParam) : null;
+  let range: { since: Date; until: Date; label: string } | null = null;
+  if (sinceParam && untilParam) {
+    const since = new Date(`${sinceParam}T00:00:00`);
+    const until = new Date(`${untilParam}T23:59:59`);
+    if (isNaN(since.getTime()) || isNaN(until.getTime())) {
+      return NextResponse.json({ error: "Las fechas 'since'/'until' no son válidas." }, { status: 400 });
+    }
+    if (since > until) {
+      return NextResponse.json({ error: "La fecha de inicio no puede ser posterior a la fecha de término." }, { status: 400 });
+    }
+    range = { since, until, label: `Del ${sinceParam} al ${untilParam}` };
+  } else if (periodParam) {
+    range = getPeriodRange(periodParam);
+  }
 
   let data;
   try {
@@ -32,7 +48,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Marca no encontrada" }, { status: 404 });
   }
 
-  const rangeLabel = range ? periodParam : `${days}d`;
+  const rangeLabel = range ? (sinceParam && untilParam ? `${sinceParam}_a_${untilParam}` : periodParam) : `${days}d`;
   const fileNameBase = `reporte-${data.brand.slug}-${rangeLabel}-${new Date().toISOString().slice(0, 10)}`;
 
   if (isDatabaseConfigured) {

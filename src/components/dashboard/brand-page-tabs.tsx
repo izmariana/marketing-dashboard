@@ -5,15 +5,17 @@ import { Topbar } from "@/components/layout/topbar";
 import { MetaAdsSection } from "@/components/dashboard/meta-ads-section";
 import { MetaContentSection } from "@/components/dashboard/meta-content-section";
 import { TikTokSection } from "@/components/dashboard/tiktok-section";
+import { LinkedInSection } from "@/components/dashboard/linkedin-section";
 import { GoogleAnalyticsSection } from "@/components/dashboard/google-analytics-section";
 import { BRANDS } from "@/types/domain";
 import { cn } from "@/lib/utils";
-import { Megaphone, Layers, Music2, LineChart } from "lucide-react";
+import { Megaphone, Layers, Music2, LineChart, Briefcase } from "lucide-react";
 
 const TABS = [
   { key: "meta-ads", label: "Meta Ads", icon: Megaphone },
   { key: "meta-content", label: "Meta Contenido", icon: Layers },
   { key: "tiktok", label: "TikTok", icon: Music2 },
+  { key: "linkedin", label: "LinkedIn", icon: Briefcase },
   { key: "google-analytics", label: "Google Analytics", icon: LineChart },
 ] as const;
 
@@ -71,6 +73,7 @@ export function BrandPageTabs({ slug }: { slug: string }) {
           {tab === "meta-ads" && <MetaAdsSection slug={slug} days={days} />}
           {tab === "meta-content" && <MetaContentSection brand={slug} days={days} />}
           {tab === "tiktok" && <TikTokSection brand={slug} days={days} />}
+          {tab === "linkedin" && <LinkedInSection brand={slug} days={days} />}
           {tab === "google-analytics" && <GoogleAnalyticsSection brand={slug} days={days} />}
         </div>
       </div>

@@ -20,19 +20,51 @@ const PERIODS = [
   { value: "monthly", label: "Mensual", description: "Mes calendario actual" },
   { value: "quarterly", label: "Trimestral", description: "Trimestre calendario actual" },
   { value: "yearly", label: "Anual", description: "Año calendario actual" },
+  { value: "custom", label: "Personalizado", description: "Elige tú el rango exacto de fechas" },
 ];
+
+function todayIso() {
+  return new Date().toISOString().slice(0, 10);
+}
+function monthAgoIso() {
+  const d = new Date();
+  d.setDate(d.getDate() - 30);
+  return d.toISOString().slice(0, 10);
+}
 
 export default function ReportesPage() {
   const [brand, setBrand] = useState<string>(BRANDS[0].slug);
   const [period, setPeriod] = useState("monthly");
+  const [customSince, setCustomSince] = useState(monthAgoIso());
+  const [customUntil, setCustomUntil] = useState(todayIso());
+  const [dateError, setDateError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState<string | null>(null);
   const { data: history, isLoading: historyLoading, refetch } = useReportHistory();
 
   async function handleExport(format: string) {
+    if (period === "custom") {
+      if (!customSince || !customUntil) {
+        setDateError("Elige la fecha de inicio y la de término.");
+        return;
+      }
+      if (customSince > customUntil) {
+        setDateError("La fecha de inicio no puede ser posterior a la de término.");
+        return;
+      }
+    }
+    setDateError(null);
     setDownloading(format);
     try {
-      const res = await fetch(`/api/reports/export?brand=${brand}&format=${format}&period=${period}`);
-      if (!res.ok) throw new Error("No se pudo generar el reporte");
+      const query =
+        period === "custom"
+          ? `brand=${brand}&format=${format}&since=${customSince}&until=${customUntil}`
+          : `brand=${brand}&format=${format}&period=${period}`;
+      const res = await fetch(`/api/reports/export?${query}`);
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        setDateError(body?.error ?? "No se pudo generar el reporte");
+        return;
+      }
 
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
@@ -92,6 +124,34 @@ export default function ReportesPage() {
               {periodMeta && <p className="text-[11px] text-muted mt-1.5">{periodMeta.description}</p>}
             </div>
 
+            {period === "custom" && (
+              <div className="flex items-end gap-3 flex-wrap">
+                <div>
+                  <label className="block text-xs font-medium text-muted mb-1.5">Desde</label>
+                  <input
+                    type="date"
+                    value={customSince}
+                    max={customUntil}
+                    onChange={(e) => setCustomSince(e.target.value)}
+                    className="text-sm rounded-md border border-border bg-surface-2 px-3 py-2 outline-none focus:border-accent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-muted mb-1.5">Hasta</label>
+                  <input
+                    type="date"
+                    value={customUntil}
+                    min={customSince}
+                    max={todayIso()}
+                    onChange={(e) => setCustomUntil(e.target.value)}
+                    className="text-sm rounded-md border border-border bg-surface-2 px-3 py-2 outline-none focus:border-accent"
+                  />
+                </div>
+              </div>
+            )}
+
+            {dateError && <p className="text-xs text-danger">{dateError}</p>}
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               {FORMATS.map((f) => {
                 const Icon = f.icon;
@@ -117,7 +177,17 @@ export default function ReportesPage() {
             </div>
 
             <p className="text-xs text-muted">
-              Se exportará el {periodMeta?.label.toLowerCase()} de <span className="font-medium text-foreground">{brandName}</span> ({periodMeta?.description.toLowerCase()}).
+              {period === "custom" ? (
+                <>
+                  Se exportará el rango del <span className="font-medium text-foreground">{customSince}</span> al{" "}
+                  <span className="font-medium text-foreground">{customUntil}</span> de{" "}
+                  <span className="font-medium text-foreground">{brandName}</span>.
+                </>
+              ) : (
+                <>
+                  Se exportará el {periodMeta?.label.toLowerCase()} de <span className="font-medium text-foreground">{brandName}</span> ({periodMeta?.description.toLowerCase()}).
+                </>
+              )}
             </p>
           </div>
         </Panel>

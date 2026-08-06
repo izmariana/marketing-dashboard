@@ -146,6 +146,40 @@ export interface FacebookPostRaw {
   };
 }
 
+/**
+ * Resuelve el Token de acceso de Página a partir de un Token de Usuario.
+ *
+ * Desde que Meta migró las Páginas a la "nueva experiencia para páginas",
+ * los endpoints de contenido orgánico (`/{page-id}/posts`, `/{page-id}/insights`,
+ * y por extensión los de la cuenta de Instagram Business conectada a esa
+ * Página) YA NO aceptan un Token de Usuario — devuelven
+ * `(#190) Invalid OAuth 2.0 Access Token` con
+ * `error_subcode: 2069032` ("se necesita un token de acceso a la página").
+ *
+ * La solución es pedirle a Meta, con el Token de Usuario, la lista de
+ * Páginas que administra (`/me/accounts`), que trae un `access_token`
+ * específico por cada Página — ese es el que hay que usar para leer
+ * posts/insights de esa Página y de su cuenta de Instagram vinculada.
+ *
+ * El Token de Usuario se sigue usando tal cual para Meta Ads
+ * (`fetchCampaignInsights`, `fetchCampaigns`), que no tiene este problema.
+ */
+export async function getPageAccessToken(userAccessToken: string, pageId: string): Promise<string> {
+  const result = await metaFetch<PagedResponse<{ id: string; name: string; access_token: string }>>(
+    `/me/accounts`,
+    { access_token: userAccessToken, fields: "id,name,access_token", limit: "200" }
+  );
+
+  const page = result.data.find((p) => p.id === pageId);
+  if (!page) {
+    throw new MetaApiError(
+      `No se encontró la Página ${pageId} entre las páginas que administra este Token de Usuario. ` +
+        `Verifica que el usuario que generó el token tenga rol de administrador en esa Página de Facebook.`
+    );
+  }
+  return page.access_token;
+}
+
 export async function fetchFacebookPosts(creds: MetaCredentials, limit = 50) {
   if (!creds.facebookPageId) throw new MetaApiError("Falta Facebook Page ID en Configuración");
 
@@ -229,6 +263,18 @@ export async function fetchFollowerCounts(creds: MetaCredentials): Promise<{ fac
  * en total — sirve para diagnosticar exactamente qué ve Meta con este
  * token y este Ad Account ID, sin depender de fechas ni permisos extra.
  */
+/**
+ * Verifica las credenciales consultando datos básicos de la cuenta
+ * publicitaria (nombre, estado, moneda) y cuenta cuántas campañas existen
+ * en total — sirve para diagnosticar exactamente qué ve Meta con este
+ * token y este Ad Account ID, sin depender de fechas ni permisos extra.
+ *
+ * También prueba, por separado, la Página de Facebook y la cuenta de
+ * Instagram Business (si están configuradas) — usando el Token de Página
+ * real (ver getPageAccessToken), que es lo que de verdad usa la
+ * sincronización de contenido. Antes este chequeo no existía, por eso
+ * "Conexión exitosa" no garantizaba que el contenido orgánico funcionara.
+ */
 export async function testMetaConnection(creds: MetaCredentials): Promise<{
   ok: boolean;
   error?: string;
@@ -236,6 +282,8 @@ export async function testMetaConnection(creds: MetaCredentials): Promise<{
   accountStatus?: number;
   currency?: string;
   totalCampaigns?: number;
+  page?: { ok: boolean; name?: string; error?: string };
+  instagram?: { ok: boolean; username?: string; error?: string };
 }> {
   try {
     const account = await metaFetch<{ name: string; account_status: number; currency: string }>(
@@ -245,12 +293,48 @@ export async function testMetaConnection(creds: MetaCredentials): Promise<{
 
     const campaignsResp = await fetchCampaigns(creds);
 
+    let page: { ok: boolean; name?: string; error?: string } | undefined;
+    let instagram: { ok: boolean; username?: string; error?: string } | undefined;
+    let pageAccessToken: string | null = null;
+
+    if (creds.facebookPageId) {
+      try {
+        pageAccessToken = await getPageAccessToken(creds.accessToken, creds.facebookPageId);
+        const pageData = await metaFetch<{ name: string }>(`/${creds.facebookPageId}`, {
+          access_token: pageAccessToken,
+          fields: "name",
+        });
+        page = { ok: true, name: pageData.name };
+      } catch (err) {
+        page = { ok: false, error: err instanceof Error ? err.message : "Error desconocido probando la Página" };
+      }
+    }
+
+    if (creds.instagramBusinessId) {
+      try {
+        // La cuenta de Instagram Business cuelga de la Página, así que usa
+        // el mismo Token de Página (si ya lo resolvimos arriba); si la
+        // Página falló, igual lo intenta con el Token de Usuario como
+        // respaldo, para no ocultar información.
+        const tokenForIg = pageAccessToken ?? creds.accessToken;
+        const igData = await metaFetch<{ username?: string }>(`/${creds.instagramBusinessId}`, {
+          access_token: tokenForIg,
+          fields: "username",
+        });
+        instagram = { ok: true, username: igData.username };
+      } catch (err) {
+        instagram = { ok: false, error: err instanceof Error ? err.message : "Error desconocido probando Instagram" };
+      }
+    }
+
     return {
       ok: true,
       accountName: account.name,
       accountStatus: account.account_status,
       currency: account.currency,
       totalCampaigns: campaignsResp.data.length,
+      page,
+      instagram,
     };
   } catch (err) {
     return { ok: false, error: err instanceof MetaApiError ? err.message : err instanceof Error ? err.message : "Error desconocido" };

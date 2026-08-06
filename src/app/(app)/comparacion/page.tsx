@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Topbar } from "@/components/layout/topbar";
 import { Panel } from "@/components/dashboard/panel";
-import { useComparePlatforms } from "@/hooks/use-platform-intelligence";
+import { useComparePlatforms, useOrganicComparison } from "@/hooks/use-platform-intelligence";
 import { BRANDS } from "@/types/domain";
 import { cn } from "@/lib/utils";
 import { Info } from "lucide-react";
@@ -17,6 +17,7 @@ export default function ComparacionPage() {
   const [brand, setBrand] = useState(BRANDS[0].slug);
   const [days, setDays] = useState(30);
   const { data, isLoading } = useComparePlatforms(brand, days);
+  const { data: organicData, isLoading: organicLoading } = useOrganicComparison(brand, days);
 
   return (
     <div>
@@ -53,6 +54,52 @@ export default function ComparacionPage() {
             </div>
           </div>
         </div>
+
+        {organicLoading || !organicData ? (
+          <div className="h-40 rounded-xl bg-surface border border-border animate-pulse" />
+        ) : (
+          <Panel title="Alcance orgánico por red social" description="Meta (Facebook + Instagram), TikTok y LinkedIn — mismo período">
+            <div className="overflow-x-auto scrollbar-thin">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-xs text-muted border-b border-border">
+                    <th className="pb-2 font-medium">Red</th>
+                    <th className="pb-2 font-medium text-right">Seguidores</th>
+                    <th className="pb-2 font-medium text-right">Crecimiento</th>
+                    <th className="pb-2 font-medium text-right">Publicaciones</th>
+                    <th className="pb-2 font-medium text-right">Engagement total</th>
+                    <th className="pb-2 font-medium text-right">Engagement / post</th>
+                    <th className="pb-2 font-medium text-right">Alcance promedio</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {organicData.rows.map((row) => (
+                    <tr key={row.network} className="border-b border-border last:border-0">
+                      <td className="py-3 pr-4 font-medium">{row.label}</td>
+                      {row.connected ? (
+                        <>
+                          <td className="py-3 text-right tabular-nums">{formatMaybe(row.followers)}</td>
+                          <td className="py-3 text-right tabular-nums">
+                            {row.followerGrowth !== null && row.followerGrowth >= 0 ? "+" : ""}
+                            {formatMaybe(row.followerGrowth)}
+                          </td>
+                          <td className="py-3 text-right tabular-nums">{formatMaybe(row.posts)}</td>
+                          <td className="py-3 text-right tabular-nums">{formatMaybe(row.totalEngagement)}</td>
+                          <td className="py-3 text-right tabular-nums">{formatMaybe(row.avgEngagementPerPost)}</td>
+                          <td className="py-3 text-right tabular-nums">{formatMaybe(row.avgReach)}</td>
+                        </>
+                      ) : (
+                        <td colSpan={6} className="py-3 text-right text-xs text-muted italic">
+                          Próximamente — falta conectar la API de LinkedIn
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Panel>
+        )}
 
         {isLoading || !data ? (
           <div className="h-64 rounded-xl bg-surface border border-border animate-pulse" />

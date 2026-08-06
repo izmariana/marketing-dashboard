@@ -4,6 +4,8 @@ import { isDatabaseConfigured } from "@/lib/db/prisma";
 import { syncAllBrands, syncBrand } from "@/lib/services/sync-service";
 import { syncAllGaBrands, syncGaBrand } from "@/lib/services/ga-sync-service";
 import { syncAllMetaContent, syncMetaContent } from "@/lib/services/meta-content-sync";
+import { syncAllTikTokContent, syncTikTokContent } from "@/lib/services/tiktok-content-sync";
+import { syncAllLinkedInContent, syncLinkedInContent } from "@/lib/services/linkedin-content-sync";
 import { generateAlertsForAllBrands } from "@/lib/services/alert-service";
 
 // Traer datos de Meta + Google Analytics de varias marcas puede tardar más
@@ -12,7 +14,7 @@ import { generateAlertsForAllBrands } from "@/lib/services/alert-service";
 export const maxDuration = 60;
 
 /**
- * POST /api/sync            → sincroniza Meta Ads, contenido orgánico de Meta y Google Analytics de todas las marcas
+ * POST /api/sync            → sincroniza Meta Ads, contenido orgánico de Meta, TikTok, LinkedIn y Google Analytics de todas las marcas
  * POST /api/sync?brandId=xx → sincroniza solo una marca
  *
  * También se invoca automáticamente por Vercel Cron cada 6 horas
@@ -23,17 +25,28 @@ async function runSync(brandId?: string) {
     return { synced: false, reason: "USE_MOCK_DATA está activo o falta DATABASE_URL. Nada que sincronizar todavía." };
   }
 
-  // Meta Ads, contenido orgánico de Meta y Google Analytics se sincronizan
-  // en paralelo (no uno después del otro) para reducir el tiempo total y
-  // evitar que la función se corte.
-  const [metaResults, metaContentResults, gaResults] = await Promise.all([
+  // Todas las plataformas se sincronizan en paralelo (no una después de
+  // otra) para reducir el tiempo total y evitar que la función se corte.
+  // TikTok y LinkedIn simplemente no traen resultados para marcas sin
+  // credenciales configuradas — no hace falta chequear eso aquí.
+  const [metaResults, metaContentResults, tiktokResults, linkedinResults, gaResults] = await Promise.all([
     brandId ? [await syncBrand(brandId)] : syncAllBrands(),
     brandId ? [await syncMetaContent(brandId)] : syncAllMetaContent(),
+    brandId ? [await syncTikTokContent(brandId)] : syncAllTikTokContent(),
+    brandId ? [await syncLinkedInContent(brandId)] : syncAllLinkedInContent(),
     brandId ? [await syncGaBrand(brandId)] : syncAllGaBrands(),
   ]);
   const alertsCreated = await generateAlertsForAllBrands();
 
-  return { synced: true, meta: metaResults, metaContent: metaContentResults, googleAnalytics: gaResults, alertsCreated };
+  return {
+    synced: true,
+    meta: metaResults,
+    metaContent: metaContentResults,
+    tiktok: tiktokResults,
+    linkedin: linkedinResults,
+    googleAnalytics: gaResults,
+    alertsCreated,
+  };
 }
 
 export async function POST(req: NextRequest) {
