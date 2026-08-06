@@ -5,7 +5,7 @@ export interface MetricHistoryConfig {
   source: "meta" | "ga" | "followers";
   metric: string;
   brand: string; // slug o "all"
-  network?: "INSTAGRAM" | "FACEBOOK" | "TIKTOK";
+  network?: "INSTAGRAM" | "FACEBOOK" | "TIKTOK" | "LINKEDIN";
 }
 
 export function useMetricHistory(
