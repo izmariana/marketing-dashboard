@@ -88,13 +88,17 @@ export interface TikTokVideoRaw {
 
 /** POST /v2/video/list/ — videos publicados con sus métricas. */
 export async function fetchTikTokVideos(creds: TikTokCredentials, maxCount = 20): Promise<TikTokVideoRaw[]> {
-  const result = await tiktokPost<{ data: { videos: TikTokVideoRaw[]; has_more: boolean; cursor: number } }>(
+  const result = await tiktokPost<{
+    data: { videos?: TikTokVideoRaw[]; video_list?: TikTokVideoRaw[]; has_more: boolean; cursor: number };
+  }>(
     "/video/list/",
     creds.accessToken,
     { max_count: maxCount },
     { fields: "id,create_time,cover_image_url,title,embed_link,view_count,like_count,comment_count,share_count" }
   );
-  return result.data.videos;
+  // Documentación de TikTok inconsistente entre versiones: a veces el campo
+  // se llama "videos", a veces "video_list" — se aceptan ambos por si acaso.
+  return result.data.videos ?? result.data.video_list ?? [];
 }
 
 /**

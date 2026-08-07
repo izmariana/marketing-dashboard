@@ -102,6 +102,7 @@ export async function syncTikTokContent(brandId: string): Promise<TikTokContentS
     return { brandSlug: brand.slug, postsSynced, followerSnapshotsSynced };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Error desconocido sincronizando contenido de TikTok";
+    console.error(`[syncTikTokContent] ${brand.slug}:`, err);
     await prisma.tiktokCredential.update({ where: { brandId: brand.id }, data: { syncStatus: "error", syncError: message } }).catch(() => {});
     return { brandSlug: brand.slug, postsSynced: 0, followerSnapshotsSynced: 0, error: message };
   }

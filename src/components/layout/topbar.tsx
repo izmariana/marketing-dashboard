@@ -34,8 +34,10 @@ export function Topbar({ title, alertCount = 0, brandSlug }: { title: string; al
         type SyncOutcome = { brandSlug: string; error?: string };
         const metaErrors = ((data.meta ?? []) as SyncOutcome[]).filter((r) => r.error);
         const metaContentErrors = ((data.metaContent ?? []) as SyncOutcome[]).filter((r) => r.error);
+        const tiktokErrors = ((data.tiktok ?? []) as SyncOutcome[]).filter((r) => r.error);
+        const linkedinErrors = ((data.linkedin ?? []) as SyncOutcome[]).filter((r) => r.error);
         const gaErrors = ((data.googleAnalytics ?? []) as SyncOutcome[]).filter((r) => r.error);
-        const allErrors = [...metaErrors, ...metaContentErrors, ...gaErrors];
+        const allErrors = [...metaErrors, ...metaContentErrors, ...tiktokErrors, ...linkedinErrors, ...gaErrors];
 
         if (allErrors.length > 0) {
           const first = allErrors[0];
@@ -49,10 +51,14 @@ export function Topbar({ title, alertCount = 0, brandSlug }: { title: string; al
           type GaOutcome = { brandSlug: string; snapshotsInserted?: number };
           const metaSummary = (data.meta ?? []) as MetaOutcome[];
           const metaContentSummary = (data.metaContent ?? []) as MetaContentOutcome[];
+          const tiktokSummary = (data.tiktok ?? []) as MetaContentOutcome[];
+          const linkedinSummary = (data.linkedin ?? []) as MetaContentOutcome[];
           const gaSummary = (data.googleAnalytics ?? []) as GaOutcome[];
           const totalCampaigns = metaSummary.reduce((a, r) => a + (r.campaignsSynced ?? 0), 0);
           const totalSnapshots = metaSummary.reduce((a, r) => a + (r.snapshotsInserted ?? 0), 0);
           const totalPosts = metaContentSummary.reduce((a, r) => a + (r.postsSynced ?? 0), 0);
+          const totalTikTokPosts = tiktokSummary.reduce((a, r) => a + (r.postsSynced ?? 0), 0);
+          const totalLinkedInPosts = linkedinSummary.reduce((a, r) => a + (r.postsSynced ?? 0), 0);
           const totalGaSnapshots = gaSummary.reduce((a, r) => a + (r.snapshotsInserted ?? 0), 0);
 
           if (metaSummary.length > 0 && totalCampaigns === 0 && totalSnapshots === 0 && gaSummary.length === 0 && metaContentSummary.length === 0) {
@@ -62,7 +68,9 @@ export function Topbar({ title, alertCount = 0, brandSlug }: { title: string; al
             });
           } else {
             const parts = [`${totalCampaigns} campañas`, `${totalSnapshots} registros Meta`];
-            if (metaContentSummary.length > 0) parts.push(`${totalPosts} publicaciones`);
+            if (metaContentSummary.length > 0) parts.push(`${totalPosts} publicaciones Meta`);
+            if (tiktokSummary.length > 0) parts.push(`${totalTikTokPosts} videos TikTok`);
+            if (linkedinSummary.length > 0) parts.push(`${totalLinkedInPosts} publicaciones LinkedIn`);
             if (gaSummary.length > 0) parts.push(`${totalGaSnapshots} registros GA`);
             setResult({ ok: true, message: `Datos actualizados: ${parts.join(", ")}` });
           }

@@ -118,6 +118,7 @@ export async function syncLinkedInContent(brandId: string): Promise<LinkedInCont
     return { brandSlug: brand.slug, postsSynced, followerSnapshotsSynced };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Error desconocido sincronizando contenido de LinkedIn";
+    console.error(`[syncLinkedInContent] ${brand.slug}:`, err);
     await prisma.linkedinCredential.update({ where: { brandId: brand.id }, data: { syncStatus: "error", syncError: message } }).catch(() => {});
     return { brandSlug: brand.slug, postsSynced: 0, followerSnapshotsSynced: 0, error: message };
   }
