@@ -21,9 +21,9 @@ const STATUS_LABEL: Record<string, string> = {
   DELETED: "Eliminada",
 };
 
-export function MetaAdsSection({ slug, days }: { slug: string; days: number }) {
+export function MetaAdsSection({ slug, days, range }: { slug: string; days: number; range?: { since: string; until: string } }) {
   const [historyTarget, setHistoryTarget] = useState<MetricHistoryTarget | null>(null);
-  const { data, isLoading, error } = useBrandMetrics(slug, days);
+  const { data, isLoading, error } = useBrandMetrics(slug, days, range);
 
   function openHistory(metric: string, label: string, formatter: (v: number) => string) {
     setHistoryTarget({ source: "meta", metric, brand: slug, label, formatter });

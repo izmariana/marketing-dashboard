@@ -7,6 +7,8 @@ import type { MetricPoint, Alert, Campaign } from "@/types/domain";
 export async function GET(req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const days = Number(req.nextUrl.searchParams.get("days") ?? "30");
+  const sinceParam = req.nextUrl.searchParams.get("since");
+  const untilParam = req.nextUrl.searchParams.get("until");
 
   const brand = BRANDS.find((b) => b.slug === slug);
   if (!brand) return NextResponse.json({ error: "Marca no encontrada" }, { status: 404 });
@@ -34,13 +36,29 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
       return NextResponse.json({ error: "La marca todavía no existe en la base de datos. Corre 'npx prisma db seed'." }, { status: 404 });
     }
 
-    const currentEnd = new Date();
-    const currentSince = new Date(currentEnd);
-    currentSince.setDate(currentSince.getDate() - (days - 1));
+    let currentEnd: Date;
+    let currentSince: Date;
+
+    // Rango personalizado (since/until exactos) — para comparar contra
+    // reportes de Business Manager que usan un período específico, en vez
+    // de "últimos N días" relativo a hoy.
+    if (sinceParam && untilParam) {
+      currentSince = new Date(`${sinceParam}T00:00:00`);
+      currentEnd = new Date(`${untilParam}T23:59:59`);
+      if (isNaN(currentSince.getTime()) || isNaN(currentEnd.getTime()) || currentSince > currentEnd) {
+        return NextResponse.json({ error: "El rango de fechas 'since'/'until' no es válido." }, { status: 400 });
+      }
+    } else {
+      currentEnd = new Date();
+      currentSince = new Date(currentEnd);
+      currentSince.setDate(currentSince.getDate() - (days - 1));
+    }
+
+    const periodDays = Math.round((currentEnd.getTime() - currentSince.getTime()) / 86400000) + 1;
     const previousEnd = new Date(currentSince);
     previousEnd.setDate(previousEnd.getDate() - 1);
     const previousSince = new Date(previousEnd);
-    previousSince.setDate(previousSince.getDate() - (days - 1));
+    previousSince.setDate(previousSince.getDate() - (periodDays - 1));
 
     const [currentSnaps, previousSnaps, campaignRows, alertRows] = await Promise.all([
       prisma.metricSnapshot.findMany({ where: { brandId: dbBrand.id, grain: "DAILY", date: { gte: currentSince, lte: currentEnd } }, orderBy: { date: "asc" } }),
