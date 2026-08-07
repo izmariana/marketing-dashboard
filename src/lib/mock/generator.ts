@@ -66,6 +66,8 @@ export function generateDailyMetrics(
     const conversions = Math.round(leads * (0.15 + rnd() * 0.2));
     const conversionRate = clicks > 0 ? (conversions / clicks) * 100 : 0;
     const frequency = 1.4 + rnd() * 2.2;
+    const engagement = Math.round(reach * (0.01 + rnd() * 0.03));
+    const engagementRate = reach > 0 ? (engagement / reach) * 100 : 0;
 
     points.push({
       date: date.toISOString().slice(0, 10),
@@ -82,6 +84,8 @@ export function generateDailyMetrics(
       conversionRate: Number(conversionRate.toFixed(2)),
       roas: profile.baseSpend > 400000 ? Number((1.8 + rnd() * 1.6).toFixed(2)) : null,
       frequency: Number(frequency.toFixed(2)),
+      engagement,
+      engagementRate: Number(engagementRate.toFixed(2)),
     });
   }
 
@@ -105,6 +109,8 @@ export function aggregateMetrics(points: MetricPoint[]): MetricPoint {
       conversionRate: 0,
       roas: null,
       frequency: 0,
+      engagement: 0,
+      engagementRate: 0,
     };
   }
 
@@ -117,6 +123,7 @@ export function aggregateMetrics(points: MetricPoint[]): MetricPoint {
   const leads = sum("leads");
   const conversions = sum("conversions");
   const reach = sum("reach");
+  const engagement = sum("engagement");
 
   const roasValues = points.map((p) => p.roas).filter((r): r is number => r !== null);
 
@@ -135,6 +142,8 @@ export function aggregateMetrics(points: MetricPoint[]): MetricPoint {
     conversionRate: clicks > 0 ? Number(((conversions / clicks) * 100).toFixed(2)) : 0,
     roas: roasValues.length ? Number((roasValues.reduce((a, b) => a + b, 0) / roasValues.length).toFixed(2)) : null,
     frequency: Number((points.reduce((a, p) => a + p.frequency, 0) / points.length).toFixed(2)),
+    engagement,
+    engagementRate: reach > 0 ? Number(((engagement / reach) * 100).toFixed(2)) : 0,
   };
 }
 

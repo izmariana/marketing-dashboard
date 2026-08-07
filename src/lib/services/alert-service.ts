@@ -50,6 +50,8 @@ async function checkCampaignMetricRules(brandId: string): Promise<number> {
     conversionRate: 0,
     roas: null,
     frequency: avg("frequency"),
+    engagement: 0,
+    engagementRate: 0,
   });
 
   const typeMap: Record<string, string> = {
@@ -300,7 +302,13 @@ export async function generateAlertsForAllBrands(): Promise<number> {
   const brands = await prisma.brand.findMany();
   let total = 0;
   for (const brand of brands) {
-    total += await generateAlertsForBrand(brand.id);
+    try {
+      total += await generateAlertsForBrand(brand.id);
+    } catch (err) {
+      // Una marca con datos raros no debe tumbar la sincronización de las
+      // demás — se registra el error y se sigue con la siguiente.
+      console.error(`Error generando alertas para la marca ${brand.slug}:`, err);
+    }
   }
   return total;
 }

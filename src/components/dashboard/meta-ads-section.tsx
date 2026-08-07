@@ -93,14 +93,12 @@ export function MetaAdsSection({ slug, days, range }: { slug: string; days: numb
             <KpiCard label="Inversión" value={formatCurrencyCLP(data.current.spend)} changePercent={pctChange(data.current.spend, data.previous.spend)} onClick={() => openHistory("spend", "Inversión", formatCurrencyCLP)} />
             <KpiCard label="Alcance" value={formatCompact(data.current.reach)} changePercent={pctChange(data.current.reach, data.previous.reach)} onClick={() => openHistory("reach", "Alcance", formatCompact)} />
             <KpiCard label="Impresiones" value={formatCompact(data.current.impressions)} changePercent={pctChange(data.current.impressions, data.previous.impressions)} onClick={() => openHistory("impressions", "Impresiones", formatCompact)} />
-            <KpiCard label="Clicks" value={formatCompact(data.current.clicks)} changePercent={pctChange(data.current.clicks, data.previous.clicks)} onClick={() => openHistory("clicks", "Clicks", formatCompact)} />
+            <KpiCard label="Clics al enlace" value={formatCompact(data.current.clicks)} changePercent={pctChange(data.current.clicks, data.previous.clicks)} onClick={() => openHistory("clicks", "Clics al enlace", formatCompact)} />
             <KpiCard label="CTR" value={formatPercent(data.current.ctr)} changePercent={pctChange(data.current.ctr, data.previous.ctr)} onClick={() => openHistory("ctr", "CTR", formatPercent)} />
             <KpiCard label="CPC" value={formatCurrencyCLP(data.current.cpc)} changePercent={pctChange(data.current.cpc, data.previous.cpc)} direction="down-is-good" onClick={() => openHistory("cpc", "CPC", formatCurrencyCLP)} />
             <KpiCard label="CPM" value={formatCurrencyCLP(data.current.cpm)} changePercent={pctChange(data.current.cpm, data.previous.cpm)} direction="down-is-good" onClick={() => openHistory("cpm", "CPM", formatCurrencyCLP)} />
-            <KpiCard label="Leads" value={formatNumber(data.current.leads)} changePercent={pctChange(data.current.leads, data.previous.leads)} onClick={() => openHistory("leads", "Leads", formatNumber)} />
-            <KpiCard label="CPL" value={formatCurrencyCLP(data.current.cpl)} changePercent={pctChange(data.current.cpl, data.previous.cpl)} direction="down-is-good" onClick={() => openHistory("cpl", "CPL", formatCurrencyCLP)} />
-            <KpiCard label="Conversiones" value={formatNumber(data.current.conversions)} changePercent={pctChange(data.current.conversions, data.previous.conversions)} onClick={() => openHistory("conversions", "Conversiones", formatNumber)} />
-            <KpiCard label="Tasa de conversión" value={formatPercent(data.current.conversionRate)} changePercent={pctChange(data.current.conversionRate, data.previous.conversionRate)} onClick={() => openHistory("conversionRate", "Tasa de conversión", formatPercent)} />
+            <KpiCard label="Interacciones" value={formatNumber(data.current.engagement)} changePercent={pctChange(data.current.engagement, data.previous.engagement)} onClick={() => openHistory("engagement", "Interacciones", formatNumber)} />
+            <KpiCard label="Tasa de interacción" value={formatPercent(data.current.engagementRate)} changePercent={pctChange(data.current.engagementRate, data.previous.engagementRate)} />
             <KpiCard label="Frecuencia" value={data.current.frequency.toFixed(2)} changePercent={pctChange(data.current.frequency, data.previous.frequency)} direction="down-is-good" onClick={() => openHistory("frequency", "Frecuencia", (v) => v.toFixed(2))} />
           </div>
 
@@ -143,8 +141,8 @@ export function MetaAdsSection({ slug, days, range }: { slug: string; days: numb
                     <th className="pb-2 font-medium text-right">Inversión</th>
                     <th className="pb-2 font-medium text-right">CTR</th>
                     <th className="pb-2 font-medium text-right">CPC</th>
-                    <th className="pb-2 font-medium text-right">Leads</th>
-                    <th className="pb-2 font-medium text-right">CPL</th>
+                    <th className="pb-2 font-medium text-right">Interacciones</th>
+                    <th className="pb-2 font-medium text-right">Tasa interacción</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -176,8 +174,8 @@ export function MetaAdsSection({ slug, days, range }: { slug: string; days: numb
                           </span>
                         </td>
                         <td className="py-2.5 text-right tabular-nums">{formatCurrencyCLP(c.metrics.cpc)}</td>
-                        <td className="py-2.5 text-right tabular-nums">{formatNumber(c.metrics.leads)}</td>
-                        <td className="py-2.5 text-right tabular-nums">{formatCurrencyCLP(c.metrics.cpl)}</td>
+                        <td className="py-2.5 text-right tabular-nums">{formatNumber(c.metrics.engagement)}</td>
+                        <td className="py-2.5 text-right tabular-nums">{formatPercent(c.metrics.engagementRate)}</td>
                       </tr>
                     ))
                   )}

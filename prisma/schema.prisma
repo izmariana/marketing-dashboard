@@ -339,6 +339,7 @@ model MetricSnapshot {
   conversionRate    Decimal?     @db.Decimal(8, 4)
   roas              Decimal?     @db.Decimal(8, 2)
   frequency         Decimal      @db.Decimal(6, 3)
+  engagement        Int          @default(0) // likes + comentarios + compartidos + guardados de los anuncios (post_engagement de Meta)
 
   createdAt         DateTime     @default(now())
 

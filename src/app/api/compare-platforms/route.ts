@@ -50,6 +50,8 @@ export async function GET(req: NextRequest) {
       conversionRate: Number(r.conversionRate ?? 0),
       roas: r.roas ? Number(r.roas) : null,
       frequency: Number(r.frequency),
+      engagement: r.engagement,
+      engagementRate: r.reach > 0 ? Number(((r.engagement / r.reach) * 100).toFixed(2)) : 0,
     }));
 
     const gaPoints: GaMetricPoint[] = gaSnaps.map((r: GaSnap) => ({

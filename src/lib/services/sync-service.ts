@@ -117,10 +117,17 @@ export async function syncBrand(brandId: string, days = 30): Promise<SyncResult>
     const snapshotRows = insights.map((row) => {
       const spend = Number(row.spend ?? 0);
       const impressions = Number(row.impressions ?? 0);
-      const clicks = Number(row.clicks ?? 0);
+      // Clics al enlace (los que de verdad llevan a tu sitio) — no "todos
+      // los clics", que incluye likes, reproducir video, ampliar foto, etc.
+      // Es el mismo número que Business Manager muestra por defecto en su
+      // columna "Clics en el enlace".
+      const clicks = Number(row.inline_link_clicks ?? 0);
       const leads = findActionValue(row.actions, "lead");
       const conversions = findActionValue(row.actions, "offsite_conversion.fb_pixel_purchase") || leads;
       const cpl = findActionValue(row.cost_per_action_type, "lead") || (leads > 0 ? spend / leads : 0);
+      // "post_engagement" es el total que agrupa likes + comentarios +
+      // compartidos + guardados + reproducir video de los anuncios.
+      const engagement = findActionValue(row.actions, "post_engagement");
 
       return {
         brandId: brand.id,
@@ -140,6 +147,7 @@ export async function syncBrand(brandId: string, days = 30): Promise<SyncResult>
         conversionRate: clicks > 0 ? (conversions / clicks) * 100 : 0,
         roas: null,
         frequency: Number(row.frequency ?? 0),
+        engagement,
       };
     });
 

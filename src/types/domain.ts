@@ -31,6 +31,8 @@ export interface MetricPoint {
   conversionRate: number; // %
   roas: number | null;
   frequency: number;
+  engagement: number;
+  engagementRate: number; // % — interacciones / alcance
 }
 
 export type CampaignObjective =

@@ -48,13 +48,15 @@ export async function GET(req: NextRequest) {
 
     const shaped = campaigns.map((c: CampaignWithSnapshots) => {
       const snaps = c.metricSnapshots;
-      const sum = (key: "spend" | "reach" | "impressions" | "clicks" | "leads" | "conversions") =>
+      const sum = (key: "spend" | "reach" | "impressions" | "clicks" | "leads" | "conversions" | "engagement") =>
         snaps.reduce((acc: number, s: (typeof snaps)[number]) => acc + Number(s[key]), 0);
 
       const spend = sum("spend");
       const impressions = sum("impressions");
       const clicks = sum("clicks");
       const leads = sum("leads");
+      const campaignReach = sum("reach");
+      const engagement = sum("engagement");
 
       return {
         id: c.id,
@@ -70,7 +72,7 @@ export async function GET(req: NextRequest) {
         metrics: {
           date: "",
           spend,
-          reach: sum("reach"),
+          reach: campaignReach,
           impressions,
           clicks,
           ctr: impressions > 0 ? (clicks / impressions) * 100 : 0,
@@ -82,6 +84,8 @@ export async function GET(req: NextRequest) {
           conversionRate: 0,
           roas: null,
           frequency: snaps.length ? snaps.reduce((a: number, s: (typeof snaps)[number]) => a + Number(s.frequency), 0) / snaps.length : 0,
+          engagement,
+          engagementRate: campaignReach > 0 ? (engagement / campaignReach) * 100 : 0,
         },
       };
     });

@@ -89,6 +89,7 @@ export const META_INSIGHT_FIELDS = [
   "reach",
   "impressions",
   "clicks",
+  "inline_link_clicks",
   "ctr",
   "cpc",
   "cpm",
@@ -104,6 +105,7 @@ export interface MetaInsightRow {
   reach: string;
   impressions: string;
   clicks: string;
+  inline_link_clicks?: string;
   ctr: string;
   cpc: string;
   cpm: string;
@@ -137,6 +139,24 @@ export async function fetchCampaignInsights(
     time_increment: "1", // desagregado por día → grain DAILY nativo
     limit: "500",
   });
+}
+
+/**
+ * Alcance real (deduplicado) de toda la cuenta para un rango de fechas
+ * exacto — a diferencia de sumar el "reach" diario (que infla el número,
+ * porque la misma persona alcanzada varios días se cuenta varias veces),
+ * esta consulta le pide a Meta el número ya deduplicado a nivel de cuenta
+ * para todo el período, sin desagregar por día (`level: account`, sin
+ * `time_increment`) — así coincide con lo que muestra Business Manager.
+ */
+export async function fetchPeriodReach(creds: MetaCredentials, since: string, until: string): Promise<number> {
+  const result = await metaFetch<{ data: Array<{ reach?: string }> }>(`/${creds.adAccountId}/insights`, {
+    access_token: creds.accessToken,
+    level: "account",
+    fields: "reach",
+    time_range: JSON.stringify({ since, until }),
+  });
+  return Number(result.data[0]?.reach ?? 0);
 }
 
 export async function fetchCampaigns(creds: MetaCredentials) {

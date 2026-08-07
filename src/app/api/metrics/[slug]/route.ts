@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { BRANDS, type BrandSlug } from "@/types/domain";
 import { generateDailyMetrics, aggregateMetrics, generateCampaigns, generateAlerts } from "@/lib/mock/generator";
 import { getPrisma, isDatabaseConfigured } from "@/lib/db/prisma";
+import { decryptSecret } from "@/lib/services/encryption";
+import { fetchPeriodReach, type MetaCredentials } from "@/lib/services/meta-client";
 import type { MetricPoint, Alert, Campaign } from "@/types/domain";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
@@ -31,7 +33,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
 
   try {
     const prisma = await getPrisma();
-    const dbBrand = await prisma.brand.findUnique({ where: { slug: brand.slug as never } });
+    const dbBrand = await prisma.brand.findUnique({ where: { slug: brand.slug as never }, include: { metaCredential: true } });
     if (!dbBrand) {
       return NextResponse.json({ error: "La marca todavía no existe en la base de datos. Corre 'npx prisma db seed'." }, { status: 404 });
     }
@@ -88,21 +90,52 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
       conversionRate: Number(r.conversionRate ?? 0),
       roas: r.roas ? Number(r.roas) : null,
       frequency: Number(r.frequency),
+      engagement: r.engagement,
+      engagementRate: r.reach > 0 ? Number(((r.engagement / r.reach) * 100).toFixed(2)) : 0,
     });
 
     const series = currentSnaps.map(toPoint);
     const current = aggregateMetrics(series);
     const previous = aggregateMetrics(previousSnaps.map(toPoint));
 
+    // El alcance sumado día por día siempre queda inflado (la misma
+    // persona alcanzada varios días se cuenta varias veces) — se
+    // reemplaza por el valor real deduplicado que entrega Meta para todo
+    // el período, que es el mismo que muestra Business Manager. Si esta
+    // llamada falla por cualquier motivo, se deja el valor sumado como
+    // respaldo en vez de romper toda la respuesta.
+    if (dbBrand.metaCredential) {
+      try {
+        const creds: MetaCredentials = {
+          accessToken: decryptSecret(dbBrand.metaCredential.accessTokenEnc),
+          adAccountId: dbBrand.metaCredential.adAccountId,
+        };
+        const [currentReach, previousReach] = await Promise.all([
+          fetchPeriodReach(creds, currentSince.toISOString().slice(0, 10), currentEnd.toISOString().slice(0, 10)),
+          fetchPeriodReach(creds, previousSince.toISOString().slice(0, 10), previousEnd.toISOString().slice(0, 10)),
+        ]);
+        current.reach = currentReach;
+        current.frequency = currentReach > 0 ? Number((current.impressions / currentReach).toFixed(2)) : 0;
+        current.engagementRate = currentReach > 0 ? Number(((current.engagement / currentReach) * 100).toFixed(2)) : 0;
+        previous.reach = previousReach;
+        previous.frequency = previousReach > 0 ? Number((previous.impressions / previousReach).toFixed(2)) : 0;
+        previous.engagementRate = previousReach > 0 ? Number(((previous.engagement / previousReach) * 100).toFixed(2)) : 0;
+      } catch (err) {
+        console.error(`No se pudo obtener el alcance real deduplicado para ${slug}:`, err);
+      }
+    }
+
     type CampaignRow = (typeof campaignRows)[number];
     const campaigns: Campaign[] = campaignRows.map((c: CampaignRow) => {
       const snaps = c.metricSnapshots;
-      const sum = (key: "spend" | "reach" | "impressions" | "clicks" | "leads" | "conversions") =>
+      const sum = (key: "spend" | "reach" | "impressions" | "clicks" | "leads" | "conversions" | "engagement") =>
         snaps.reduce((acc: number, s: (typeof snaps)[number]) => acc + Number(s[key]), 0);
       const spend = sum("spend");
       const impressions = sum("impressions");
       const clicks = sum("clicks");
       const leads = sum("leads");
+      const campaignReach = sum("reach");
+      const engagement = sum("engagement");
 
       return {
         id: c.id,
@@ -118,7 +151,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
         metrics: {
           date: "",
           spend,
-          reach: sum("reach"),
+          reach: campaignReach,
           impressions,
           clicks,
           ctr: impressions > 0 ? (clicks / impressions) * 100 : 0,
@@ -130,6 +163,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
           conversionRate: 0,
           roas: null,
           frequency: snaps.length ? snaps.reduce((a: number, s: (typeof snaps)[number]) => a + Number(s.frequency), 0) / snaps.length : 0,
+          engagement,
+          engagementRate: campaignReach > 0 ? (engagement / campaignReach) * 100 : 0,
         },
       };
     });
