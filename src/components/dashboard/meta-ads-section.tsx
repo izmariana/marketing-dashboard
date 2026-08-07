@@ -1,13 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Panel } from "@/components/dashboard/panel";
 import { KpiCard } from "@/components/dashboard/kpi-card";
 import { EvolutionChart } from "@/components/charts/evolution-chart";
 import { useBrandMetrics } from "@/hooks/use-brand-metrics";
 import { MetricHistoryPanel, type MetricHistoryTarget } from "@/components/dashboard/metric-history-panel";
 import { formatCurrencyCLP, formatNumber, formatPercent, formatCompact, cn } from "@/lib/utils";
-import { AlertTriangle, TrendingUp, TrendingDown } from "lucide-react";
+import { AlertTriangle, TrendingUp, TrendingDown, RotateCcw, Loader2 } from "lucide-react";
 
 function pctChange(current: number, previous: number): number {
   if (previous === 0) return current === 0 ? 0 : 100;
@@ -24,9 +25,35 @@ const STATUS_LABEL: Record<string, string> = {
 export function MetaAdsSection({ slug, days, range }: { slug: string; days: number; range?: { since: string; until: string } }) {
   const [historyTarget, setHistoryTarget] = useState<MetricHistoryTarget | null>(null);
   const { data, isLoading, error } = useBrandMetrics(slug, days, range);
+  const queryClient = useQueryClient();
+  const [resetting, setResetting] = useState(false);
+  const [resetMessage, setResetMessage] = useState<string | null>(null);
 
   function openHistory(metric: string, label: string, formatter: (v: number) => string) {
     setHistoryTarget({ source: "meta", metric, brand: slug, label, formatter });
+  }
+
+  async function handleResetHistory() {
+    if (!confirm("Esto borra el histórico de Meta Ads guardado para esta marca y vuelve a traer los últimos 90 días desde cero. No afecta tus publicaciones ni tu configuración. ¿Continuar?")) {
+      return;
+    }
+    setResetting(true);
+    setResetMessage(null);
+    try {
+      const res = await fetch(`/api/settings/reset-meta-history?brandSlug=${slug}`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        setResetMessage(data.error ?? "No se pudo reiniciar el historial.");
+      } else {
+        setResetMessage(`Listo: se borraron ${data.deletedSnapshots} registros viejos y se sincronizaron ${data.resync?.snapshotsInserted ?? 0} nuevos.`);
+        queryClient.invalidateQueries({ queryKey: ["brand-metrics", slug] });
+      }
+    } catch {
+      setResetMessage("No se pudo conectar con el servidor.");
+    } finally {
+      setResetting(false);
+      setTimeout(() => setResetMessage(null), 10000);
+    }
   }
 
   if (error) {
@@ -35,9 +62,23 @@ export function MetaAdsSection({ slug, days, range }: { slug: string; days: numb
 
   return (
     <div className="space-y-5">
-      <div>
-        <h2 className="text-base font-semibold tracking-tight">Meta Ads</h2>
-        <p className="text-sm text-muted">Rendimiento de campañas pagadas de Facebook e Instagram</p>
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h2 className="text-base font-semibold tracking-tight">Meta Ads</h2>
+          <p className="text-sm text-muted">Rendimiento de campañas pagadas de Facebook e Instagram</p>
+        </div>
+        <div className="text-right">
+          <button
+            onClick={handleResetHistory}
+            disabled={resetting}
+            className="flex items-center gap-1.5 text-xs font-medium rounded-md border border-border px-2.5 py-1.5 hover:bg-surface transition-colors disabled:opacity-60"
+            title="Borra el histórico guardado y sincroniza de nuevo desde cero — útil si los números no coinciden con Business Manager"
+          >
+            {resetting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
+            {resetting ? "Reiniciando..." : "Reiniciar historial y resincronizar"}
+          </button>
+          {resetMessage && <p className="text-[11px] text-muted mt-1 max-w-xs">{resetMessage}</p>}
+        </div>
       </div>
 
       {isLoading || !data ? (
