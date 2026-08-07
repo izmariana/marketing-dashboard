@@ -47,6 +47,37 @@ async function metaFetch<T>(path: string, params: Record<string, string>): Promi
   return json as T;
 }
 
+/**
+ * Igual que metaFetch, pero sigue `paging.next` hasta traer TODAS las
+ * páginas de resultados. Meta corta las respuestas grandes en páginas
+ * (normalmente ~25-100 filas cada una) sin importar el `limit` pedido —
+ * si no se siguen las páginas siguientes, se pierden datos en silencio.
+ * Esto fue justo la causa de que Inversión/Impresiones salieran ~30% más
+ * bajas que en Business Manager: se leía solo la primera página.
+ */
+async function metaFetchAllPages<T>(path: string, params: Record<string, string>): Promise<T[]> {
+  const first = await metaFetch<PagedResponse<T>>(path, params);
+  const results = [...first.data];
+  let nextUrl = first.paging?.next;
+
+  // Límite de seguridad de 20 páginas para nunca quedar en un loop infinito
+  // si Meta devolviera un `next` que no avanza por algún motivo raro.
+  let guard = 0;
+  while (nextUrl && guard < 20) {
+    const res = await fetch(nextUrl, { method: "GET" });
+    const json = await res.json();
+    if (!res.ok || json.error) {
+      throw new MetaApiError(json.error?.message ?? `Meta API error (${res.status})`, res.status, json.error);
+    }
+    const page = json as PagedResponse<T>;
+    results.push(...page.data);
+    nextUrl = page.paging?.next;
+    guard++;
+  }
+
+  return results;
+}
+
 // ---------------------------------------------------------------------------
 // Marketing API — Insights de campañas / conjuntos / anuncios
 // ---------------------------------------------------------------------------
@@ -98,23 +129,18 @@ export async function fetchCampaignInsights(
 ): Promise<MetaInsightRow[]> {
   const { since, until, level = "campaign" } = opts;
 
-  const result = await metaFetch<PagedResponse<MetaInsightRow>>(
-    `/${creds.adAccountId}/insights`,
-    {
-      access_token: creds.accessToken,
-      level,
-      fields: META_INSIGHT_FIELDS,
-      time_range: JSON.stringify({ since, until }),
-      time_increment: "1", // desagregado por día → grain DAILY nativo
-      limit: "500",
-    }
-  );
-
-  return result.data;
+  return metaFetchAllPages<MetaInsightRow>(`/${creds.adAccountId}/insights`, {
+    access_token: creds.accessToken,
+    level,
+    fields: META_INSIGHT_FIELDS,
+    time_range: JSON.stringify({ since, until }),
+    time_increment: "1", // desagregado por día → grain DAILY nativo
+    limit: "500",
+  });
 }
 
 export async function fetchCampaigns(creds: MetaCredentials) {
-  return metaFetch<PagedResponse<{
+  const data = await metaFetchAllPages<{
     id: string;
     name: string;
     objective: string;
@@ -123,11 +149,12 @@ export async function fetchCampaigns(creds: MetaCredentials) {
     lifetime_budget?: string;
     start_time?: string;
     stop_time?: string;
-  }>>(`/${creds.adAccountId}/campaigns`, {
+  }>(`/${creds.adAccountId}/campaigns`, {
     access_token: creds.accessToken,
     fields: "id,name,objective,status,daily_budget,lifetime_budget,start_time,stop_time",
     limit: "500",
   });
+  return { data };
 }
 
 // ---------------------------------------------------------------------------
@@ -273,10 +300,20 @@ export async function fetchFollowerCounts(creds: MetaCredentials): Promise<{ fac
 /**
  * Verifica las credenciales consultando datos básicos de la cuenta
  * publicitaria (nombre, estado, moneda) y cuenta cuántas campañas existen
- * en total, y también prueba por separado la Página de Facebook y la
- * cuenta de Instagram Business (si están configuradas) — usando el Token
- * de Página real (ver getPageAccessToken), que es lo que de verdad usa la
- * sincronización de contenido.
+ * en total — sirve para diagnosticar exactamente qué ve Meta con este
+ * token y este Ad Account ID, sin depender de fechas ni permisos extra.
+ */
+/**
+ * Verifica las credenciales consultando datos básicos de la cuenta
+ * publicitaria (nombre, estado, moneda) y cuenta cuántas campañas existen
+ * en total — sirve para diagnosticar exactamente qué ve Meta con este
+ * token y este Ad Account ID, sin depender de fechas ni permisos extra.
+ *
+ * También prueba, por separado, la Página de Facebook y la cuenta de
+ * Instagram Business (si están configuradas) — usando el Token de Página
+ * real (ver getPageAccessToken), que es lo que de verdad usa la
+ * sincronización de contenido. Antes este chequeo no existía, por eso
+ * "Conexión exitosa" no garantizaba que el contenido orgánico funcionara.
  */
 export async function testMetaConnection(creds: MetaCredentials): Promise<{
   ok: boolean;
@@ -315,6 +352,10 @@ export async function testMetaConnection(creds: MetaCredentials): Promise<{
 
     if (creds.instagramBusinessId) {
       try {
+        // La cuenta de Instagram Business cuelga de la Página, así que usa
+        // el mismo Token de Página (si ya lo resolvimos arriba); si la
+        // Página falló, igual lo intenta con el Token de Usuario como
+        // respaldo, para no ocultar información.
         const tokenForIg = pageAccessToken ?? creds.accessToken;
         const igData = await metaFetch<{ username?: string }>(`/${creds.instagramBusinessId}`, {
           access_token: tokenForIg,
