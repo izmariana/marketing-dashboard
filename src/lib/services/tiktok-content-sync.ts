@@ -34,7 +34,7 @@ export async function syncTikTokContent(brandId: string): Promise<TikTokContentS
   };
 
   try {
-    const videos: TikTokVideoRaw[] = await fetchTikTokVideos(creds, 30);
+    const videos: TikTokVideoRaw[] = await fetchTikTokVideos(creds, 20);
 
     const shaped = videos.map((v) => ({
       video: v,

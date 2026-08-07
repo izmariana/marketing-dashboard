@@ -86,14 +86,15 @@ export interface TikTokVideoRaw {
   share_count: number;
 }
 
-/** POST /v2/video/list/ — videos publicados con sus métricas. */
+/** POST /v2/video/list/ — videos publicados con sus métricas. TikTok exige max_count entre 1 y 20. */
 export async function fetchTikTokVideos(creds: TikTokCredentials, maxCount = 20): Promise<TikTokVideoRaw[]> {
+  const clampedMaxCount = Math.min(20, Math.max(1, maxCount));
   const result = await tiktokPost<{
     data: { videos?: TikTokVideoRaw[]; video_list?: TikTokVideoRaw[]; has_more: boolean; cursor: number };
   }>(
     "/video/list/",
     creds.accessToken,
-    { max_count: maxCount },
+    { max_count: clampedMaxCount },
     { fields: "id,create_time,cover_image_url,title,embed_link,view_count,like_count,comment_count,share_count" }
   );
   // Documentación de TikTok inconsistente entre versiones: a veces el campo
