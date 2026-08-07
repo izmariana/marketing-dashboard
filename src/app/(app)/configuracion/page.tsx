@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react"; import { useSearchParams } from "next/navigation"
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -502,7 +502,15 @@ function TikTokCredentialCard({ brandSlug, brandName, brandColor }: { brandSlug:
       <div className="flex items-center gap-2 mb-4">
         <span className="h-2.5 w-2.5 rounded-full" style={{ background: brandColor }} />
         <h3 className="text-sm font-medium">{brandName}</h3>
-      </div>
+      </div> <a href={`/api/auth/tiktok/authorize?brandSlug=${brandSlug}`}
+        className="mb-3 flex items-center justify-center gap-1.5 text-xs font-medium rounded-md bg-black text-white px-3 py-2 hover:opacity-90 transition-opacity"
+      >
+        Conectar con TikTok (login automático)
+      </a>
+      <p className="text-[11px] text-muted mb-4">
+        Abre el login real de TikTok — al autorizar, el token queda guardado solo. Requiere que ya hayas creado la app en developers.tiktok.com y configurado TIKTOK_CLIENT_KEY / TIKTOK_CLIENT_SECRET en Vercel.
+      </p>
+      <p className="text-[11px] text-muted mb-2">O pega un token manualmente si ya lo tienes:</p>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-3">
         <div>
@@ -803,7 +811,26 @@ function OpenAiSettingsCard() {
   );
 }
 
-export default function ConfiguracionPage() {
+function TikTokOAuthBanner() {
+  const searchParams = useSearchParams();
+  const tiktokSuccess = searchParams.get("tiktok_success");
+  const tiktokError = searchParams.get("tiktok_error");
+  if (!tiktokSuccess && !tiktokError) return null;
+  return (
+    <>
+      {tiktokSuccess && (
+        <div className="rounded-md border border-success/30 bg-success/5 p-3 text-sm text-success">
+          ✓ TikTok conectado correctamente para {tiktokSuccess}.
+        </div>
+      )}
+      {tiktokError && (
+        <div className="rounded-md border border-danger/30 bg-danger/5 p-3 text-sm text-danger">
+          ✗ {tiktokError}
+        </div>
+      )}
+    </>
+  );
+} export default function ConfiguracionPage() {
   return (
     <div>
       <Topbar title="Configuración" />
