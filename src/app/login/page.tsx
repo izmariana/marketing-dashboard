@@ -10,7 +10,7 @@ import { useBranding } from "@/hooks/use-branding";
 export default function LoginPage() {
   const router = useRouter();
   const { data: branding } = useBranding();
-  const [email, setEmail] = useState("admin@dashboard.cl");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -77,7 +77,6 @@ export default function LoginPage() {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="admin123 (demo)"
                 className="w-full rounded-md border border-border bg-surface-2 px-3 py-2 text-sm outline-none focus:border-accent transition-colors"
               />
             </div>
@@ -93,10 +92,6 @@ export default function LoginPage() {
             </button>
           </form>
         </div>
-
-        <p className="text-xs text-muted text-center mt-4">
-          Demo: admin@dashboard.cl / admin123
-        </p>
       </div>
     </div>
   );
