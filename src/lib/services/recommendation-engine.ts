@@ -45,23 +45,23 @@ export function evaluateRecommendations(metrics: MetricPoint): Recommendation[] 
     });
   }
 
-  if (metrics.cpl > 2000) {
+  if (metrics.engagementRate > 0 && metrics.engagementRate < BENCHMARKS_CHILE.engagementRate.low) {
     recs.push({
-      id: "cpl-high",
-      severity: "critical",
-      title: "Revisar formulario",
-      detail: `El CPL ($${metrics.cpl.toFixed(0)}) supera $2.000. Revisa la longitud del formulario, la velocidad de carga de la landing y la claridad de la oferta.`,
-      metricTrigger: "cpl",
+      id: "engagement-low",
+      severity: "warning",
+      title: "Revisar creatividad y segmentación",
+      detail: `La tasa de interacción actual (${metrics.engagementRate.toFixed(2)}%) está por debajo del referente de industria (${BENCHMARKS_CHILE.engagementRate.low}%). El anuncio no está resonando con la audiencia — prueba un formato distinto o ajusta la segmentación.`,
+      metricTrigger: "engagementRate",
     });
   }
 
-  if (metrics.ctr > 2.5 && metrics.cpl < 1000) {
+  if (metrics.ctr > 2.5 && metrics.engagementRate > BENCHMARKS_CHILE.engagementRate.avgHigh) {
     recs.push({
       id: "scale-opportunity",
       severity: "opportunity",
       title: "Escalar presupuesto +20%",
-      detail: `CTR alto (${metrics.ctr.toFixed(2)}%) combinado con CPL bajo ($${metrics.cpl.toFixed(0)}) indica un anuncio ganador. Aumenta el presupuesto diario en 20% de forma gradual.`,
-      metricTrigger: "ctr+cpl",
+      detail: `CTR alto (${metrics.ctr.toFixed(2)}%) combinado con una tasa de interacción sobre el referente de industria (${metrics.engagementRate.toFixed(2)}%) indica un anuncio ganador. Aumenta el presupuesto diario en 20% de forma gradual.`,
+      metricTrigger: "ctr+engagementRate",
     });
   }
 

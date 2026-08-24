@@ -35,6 +35,10 @@ async function checkCampaignMetricRules(brandId: string): Promise<number> {
   const avg = (key: "ctr" | "cpc" | "cpl" | "frequency") =>
     last7Days.reduce((acc: number, s: (typeof last7Days)[number]) => acc + Number(s[key]), 0) / last7Days.length;
 
+  const totalReach = last7Days.reduce((a: number, s: (typeof last7Days)[number]) => a + s.reach, 0);
+  const totalEngagement = last7Days.reduce((a: number, s: (typeof last7Days)[number]) => a + s.engagement, 0);
+  const engagementRate = totalReach > 0 ? (totalEngagement / totalReach) * 100 : 0;
+
   const recs = evaluateRecommendations({
     date: "",
     spend: 0,
@@ -50,15 +54,15 @@ async function checkCampaignMetricRules(brandId: string): Promise<number> {
     conversionRate: 0,
     roas: null,
     frequency: avg("frequency"),
-    engagement: 0,
-    engagementRate: 0,
+    engagement: totalEngagement,
+    engagementRate,
   });
 
   const typeMap: Record<string, string> = {
     "ctr-low": "CTR_DROP",
     "cpc-high": "CPL_INCREASE",
     "frequency-high": "HIGH_FREQUENCY",
-    "cpl-high": "CPL_INCREASE",
+    "engagement-low": "ENGAGEMENT_DROP",
   };
 
   let created = 0;
@@ -231,14 +235,14 @@ async function checkCampaignsNoResults(brandId: string): Promise<number> {
   for (const c of campaigns) {
     type SnapRow = (typeof c.metricSnapshots)[number];
     const spend = c.metricSnapshots.reduce((a: number, s: SnapRow) => a + Number(s.spend), 0);
-    const conversions = c.metricSnapshots.reduce((a: number, s: SnapRow) => a + s.conversions, 0);
-    const leads = c.metricSnapshots.reduce((a: number, s: SnapRow) => a + s.leads, 0);
-    if (spend > 20000 && conversions === 0 && leads === 0 && c.metricSnapshots.length >= 3) {
+    const clicks = c.metricSnapshots.reduce((a: number, s: SnapRow) => a + s.clicks, 0);
+    const engagement = c.metricSnapshots.reduce((a: number, s: SnapRow) => a + s.engagement, 0);
+    if (spend > 20000 && clicks === 0 && engagement === 0 && c.metricSnapshots.length >= 3) {
       const ok = await createAlert(
         brandId,
         "CAMPAIGN_NO_RESULTS",
         "CRITICAL",
-        `La campaña '${c.name}' lleva ${c.metricSnapshots.length} días con inversión activa y cero conversiones.`,
+        `La campaña '${c.name}' lleva ${c.metricSnapshots.length} días con inversión activa, cero clics al enlace y cero interacciones.`,
         "Pausa la campaña y revisa la segmentación o el objetivo configurado antes de seguir invirtiendo."
       );
       if (ok) created++;

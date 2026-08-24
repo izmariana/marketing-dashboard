@@ -8,10 +8,11 @@ import { TikTokSection } from "@/components/dashboard/tiktok-section";
 import { LinkedInSection } from "@/components/dashboard/linkedin-section";
 import { GoogleAnalyticsSection } from "@/components/dashboard/google-analytics-section";
 import { BRANDS } from "@/types/domain";
+import { getBrandPlatforms } from "@/lib/brand-platforms";
 import { cn } from "@/lib/utils";
 import { Megaphone, Layers, Music2, LineChart, Briefcase } from "lucide-react";
 
-const TABS = [
+const ALL_TABS = [
   { key: "meta-ads", label: "Meta Ads", icon: Megaphone },
   { key: "meta-content", label: "Meta Contenido", icon: Layers },
   { key: "tiktok", label: "TikTok", icon: Music2 },
@@ -19,7 +20,7 @@ const TABS = [
   { key: "google-analytics", label: "Google Analytics", icon: LineChart },
 ] as const;
 
-type TabKey = (typeof TABS)[number]["key"];
+type TabKey = (typeof ALL_TABS)[number]["key"];
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
@@ -32,7 +33,9 @@ function monthAgoIso() {
 
 export function BrandPageTabs({ slug }: { slug: string }) {
   const brand = BRANDS.find((b) => b.slug === slug);
-  const [tab, setTab] = useState<TabKey>("meta-ads");
+  const enabledKeys = getBrandPlatforms(slug);
+  const TABS = ALL_TABS.filter((t) => enabledKeys.includes(t.key));
+  const [tab, setTab] = useState<TabKey>(TABS[0]?.key ?? "meta-ads");
   const [days, setDays] = useState(30);
   const [customRangeOpen, setCustomRangeOpen] = useState(false);
   const [customSince, setCustomSince] = useState(monthAgoIso());

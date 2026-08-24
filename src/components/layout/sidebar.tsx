@@ -31,7 +31,6 @@ interface NavGroup {
 type NavItem = NavLeaf | NavGroup;
 
 const NAV: NavItem[] = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   {
     label: "Marcas",
     icon: Building2,

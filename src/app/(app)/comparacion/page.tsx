@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Topbar } from "@/components/layout/topbar";
 import { Panel } from "@/components/dashboard/panel";
 import { useComparePlatforms, useOrganicComparison } from "@/hooks/use-platform-intelligence";
+import { getBrandPlatforms } from "@/lib/brand-platforms";
 import { BRANDS } from "@/types/domain";
 import { cn } from "@/lib/utils";
 import { Info } from "lucide-react";
@@ -18,6 +19,16 @@ export default function ComparacionPage() {
   const [days, setDays] = useState(30);
   const { data, isLoading } = useComparePlatforms(brand, days);
   const { data: organicData, isLoading: organicLoading } = useOrganicComparison(brand, days);
+
+  // Solo se muestran las redes orgánicas que esa marca realmente usa — ej.
+  // Segal Deudores usa TikTok pero no LinkedIn, Inversiones Cinco al revés.
+  const enabledPlatforms = getBrandPlatforms(brand);
+  const visibleOrganicRows = (organicData?.rows ?? []).filter((row) => {
+    if (row.network === "META") return true; // todas las marcas usan Meta
+    if (row.network === "TIKTOK") return enabledPlatforms.includes("tiktok");
+    if (row.network === "LINKEDIN") return enabledPlatforms.includes("linkedin");
+    return true;
+  });
 
   return (
     <div>
@@ -58,7 +69,7 @@ export default function ComparacionPage() {
         {organicLoading || !organicData ? (
           <div className="h-40 rounded-xl bg-surface border border-border animate-pulse" />
         ) : (
-          <Panel title="Alcance orgánico por red social" description="Meta (Facebook + Instagram), TikTok y LinkedIn — mismo período">
+          <Panel title="Alcance orgánico por red social" description="Redes conectadas para esta marca — mismo período">
             <div className="overflow-x-auto scrollbar-thin">
               <table className="w-full text-sm">
                 <thead>
@@ -73,7 +84,7 @@ export default function ComparacionPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {organicData.rows.map((row) => (
+                  {visibleOrganicRows.map((row) => (
                     <tr key={row.network} className="border-b border-border last:border-0">
                       <td className="py-3 pr-4 font-medium">{row.label}</td>
                       {row.connected ? (
@@ -90,7 +101,7 @@ export default function ComparacionPage() {
                         </>
                       ) : (
                         <td colSpan={6} className="py-3 text-right text-xs text-muted italic">
-                          Próximamente — falta conectar la API de LinkedIn
+                          Próximamente — falta conectar {row.label}
                         </td>
                       )}
                     </tr>
